@@ -49,7 +49,8 @@ class TrainProcess():
             if os.path.isfile(self.args.checkpoint):
                 logging.info(f"loading checkpoint: {self.args.checkpoint}")
                 checkpoint = torch.load(self.args.checkpoint)
-                self.model.load_state_dict(checkpoint)
+                self.encoder.load_state_dict(checkpoint['encoder_state_dict'])
+                self.decoder.load_state_dict(checkpoint['decoder_state_dict'])
             else:
                 logging.info(f"no resume checkpoint found at {self.args.checkpoint}")
 
@@ -67,7 +68,7 @@ class TrainProcess():
             mod2_seq = mod2_seq.cuda().float()
             
             # model forward
-            mod1_common_emb, mod2_common_emb, _, _= self.encoder(mod1_seq, mod2_seq)
+            mod1_common_emb, mod2_common_emb = self.encoder(mod1_seq, mod2_seq)
             zero_resid_emb = torch.zeros_like(mod1_common_emb)
             mod1_recon, mod2_recon = self.decoder(mod1_common_emb, mod2_common_emb,
                                                     zero_resid_emb, zero_resid_emb)
@@ -77,7 +78,7 @@ class TrainProcess():
             mod2_loss = self.args.rec_loss_weight * self.mse_loss(mod2_seq, mod2_recon) 
             rec_loss = mod1_loss + mod2_loss
 
-            common_emb_loss = self.args.common_loss_weight \
+            common_emb_loss = self.args.cmn_loss_weight \
                               * self.mse_loss(mod1_common_emb, mod2_common_emb)
 
             total_loss = rec_loss + common_emb_loss
@@ -106,6 +107,7 @@ class TrainProcess():
         }, filename)
 
     def run(self):
+        self.load_checkpoint()
         print("start training ...")
         for e in range(self.args.epoch):
             self.train_epoch(e)
@@ -118,13 +120,14 @@ class TrainProcess():
         mod2_pred = []
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.cuda().float()
+            mod2_zeros = torch.zeros([mod1_seq.size()[0], self.args.mod2_dim]).cuda().float()
             
             # mod1 seq => encode (1) => mod1_cm_emb => decode (2) => mod2_rec
-            mod1_cm_emb, mod2_cm_emb, _, _= self.encoder(mod1_seq, mod2_seq)
+            mod1_cm_emb, mod2_cm_emb = self.encoder(mod1_seq, mod2_zeros)
             zero_resid_emb = torch.zeros_like(mod1_cm_emb)
             _, mod2_rec = self.decoder(mod2_cm_emb, mod1_cm_emb,
-                                                zero_resid_emb, zero_resid_emb)
-            
+                                        zero_resid_emb, zero_resid_emb)
+
             mod2_pred.append(mod2_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()

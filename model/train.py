@@ -7,6 +7,7 @@ from scipy.sparse import csc_matrix
 
 from trainer_nn import TrainProcess as TrainProcess_NN
 from trainer_pairae import TrainProcess as TrainProcess_PairAE
+from trainer_residual import TrainProcess as TrainProcess_Res
 
 from opts import DATASET, model_opts
 from dataloader import get_data_dim
@@ -41,7 +42,8 @@ if args.arch == 'nn':
     trainer = TrainProcess_NN(args)
 elif args.arch == 'pairae':
     trainer = TrainProcess_PairAE(args)
+elif args.arch == 'residual':
+    trainer = TrainProcess_Res(args)
 
-trainer.load_checkpoint()
 trainer.run()
 trainer.eval()

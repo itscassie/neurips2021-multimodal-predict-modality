@@ -82,6 +82,7 @@ class TrainProcess():
         torch.save(self.model.state_dict(), filename)
 
     def run(self):
+        self.load_checkpoint()
         print("start training ...")
         for e in range(self.args.epoch):
             self.train_epoch(e)
@@ -102,5 +103,5 @@ class TrainProcess():
         mod2_pred = csc_matrix(mod2_pred)
 
         mod2_sol = ad.read_h5ad(DATASET[self.args.mode]['test_mod2']).X
-        rmse_pred = rmse(mod2_sol, mod2_pred)
+        rmse_pred = rmse(mod2_sol, mod2_predwei)
         logging.info(f"RMSE: {rmse_pred:5f}")

@@ -2,7 +2,7 @@ import argparse
 
 def model_opts(parser):
     parser.add_argument("--mode", type=str, choices=['gex2atac', 'gex2adt', 'adt2gex', 'atac2gex'], required=True)
-    parser.add_argument("--arch", type=str, choices=['nn', 'pairae'], default='nn')
+    parser.add_argument("--arch", type=str, choices=['nn', 'pairae', 'residual'], default='nn')
     parser.add_argument("--epoch", "-e", type=int, default=100)
     parser.add_argument("--batch_size", "-bs", type=int, default=2048)
 
@@ -12,11 +12,15 @@ def model_opts(parser):
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--lr_decay_epoch", type=int, default=40)
     parser.add_argument("--momentum", type=float, default=0.9)
-    parser.add_argument("--checkpoint", type=str, default=None)
 
     parser.add_argument("--rec_loss_weight", type=float, default=10)
-    parser.add_argument("--common_loss_weight", type=float, default=1)
+    parser.add_argument("--cmn_loss_weight", type=float, default=1)
+    parser.add_argument("--cos_loss_weight", type=float, default=1)
 
+    parser.add_argument("--checkpoint", type=str, default=None)
+    parser.add_argument("--pretrain_weight", type=str, default=None)
+    parser.add_argument("--pretrain_epoch", type=int, default=100)
+    
 
 ADT2GEX = {
     'train_mod1': '../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_train_mod1.h5ad', 
