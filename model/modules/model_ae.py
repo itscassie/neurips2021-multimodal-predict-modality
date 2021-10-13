@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, out_dim, hidden_dim):
@@ -46,6 +48,16 @@ class AutoEncoder(nn.Module):
         x_rec = self.decoder(feat)
         return x_rec
 
+class UnbAutoEncoder(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hid_dim_en, hid_dim_de):
+        super(UnbAutoEncoder, self).__init__()
+        self.encoder = Encoder(input_dim, feat_dim, hid_dim_en)
+        self.decoder = Decoder(feat_dim, out_dim, hid_dim_de)
+    
+    def forward(self, x):
+        feat = self.encoder(x)
+        x_rec = self.decoder(feat)
+        return x_rec
 
 class BN_common_encoder(nn.Module):
     def __init__(self, rna_input_size, atac_input_size, out_dim, hidden_dim=1000):
@@ -99,3 +111,52 @@ class BN_concat_decoder(nn.Module):
         atac_rec = self.atac_decoder(atac_embedding)
                         
         return rna_rec, atac_rec
+
+
+class Discriminator(nn.Module):
+    def __init__(self, input_dim, hidden_dim=1000):
+        super(Discriminator, self).__init__()
+        self.dis = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(hidden_dim, 1),
+            nn.Dropout(0.5),
+            nn.Sigmoid(),
+        )
+    
+    def forward(self, x):
+        x = x + torch.normal(mean=0, std=0.3, size=x.shape).cuda()
+        return self.dis(x).view(-1)
+
+class Pix2Pix(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim=1000):
+        super(Pix2Pix, self).__init__()
+
+        self.autoencoder = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim)
+        self.discriminator = Discriminator(out_dim, hidden_dim)
+
+    def forward(self, x, y_real):
+
+        y_fake = self.autoencoder(x)
+        fake_score = self.discriminator(y_fake)
+        real_score = self.discriminator(y_real)
+
+        return y_fake, fake_score, real_score
+
+if __name__ == "__main__":
+    import torch
+    bsz = 5
+    input_dim = 100
+    out_dim = 134 
+    feat_dim = 64 
+    hidden_dim = 1000
+
+    pix2pix = Pix2Pix(input_dim, out_dim, feat_dim).cuda().float()
+    x = torch.randn(bsz, input_dim).cuda()
+    y_fake, fake_score, real_score = pix2pix(x)
+    print(pix2pix)
+    print(y_fake, fake_score, real_score)

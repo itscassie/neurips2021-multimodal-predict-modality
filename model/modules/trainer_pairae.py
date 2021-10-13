@@ -11,13 +11,14 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
 from opts import DATASET
-from dataloader import SeqDataset
-from model_ae import BN_common_encoder, BN_concat_decoder
-from metric import rmse
+from utils.metric import rmse
+from utils.dataloader import SeqDataset
+from modules.model_ae import BN_common_encoder, BN_concat_decoder
 
 class TrainProcess():
     def __init__(self, args):
         self.args = args
+        self.device = torch.device('cuda:{}'.format(args.gpu_ids[0])) if args.gpu_ids else torch.device('cpu')
 
         self.trainset = SeqDataset(DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'])
         self.testset = SeqDataset(DATASET[args.mode]['test_mod1'])
@@ -25,8 +26,8 @@ class TrainProcess():
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
-        self.encoder = BN_common_encoder(args.mod1_dim, args.mod2_dim, args.emb_dim, args.hid_dim).cuda()
-        self.decoder = BN_concat_decoder(args.emb_dim, args.mod1_dim, args.mod2_dim, args.hid_dim).cuda()
+        self.encoder = BN_common_encoder(args.mod1_dim, args.mod2_dim, args.emb_dim, args.hid_dim).to(self.device)
+        self.decoder = BN_concat_decoder(args.emb_dim, args.mod1_dim, args.mod2_dim, args.hid_dim).to(self.device)
         logging.info(self.encoder)
         logging.info(self.decoder)
 
@@ -64,8 +65,8 @@ class TrainProcess():
 
         for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.train_loader):
 
-            mod1_seq = mod1_seq.cuda().float()
-            mod2_seq = mod2_seq.cuda().float()
+            mod1_seq = mod1_seq.to(self.device).float()
+            mod2_seq = mod2_seq.to(self.device).float()
             
             # model forward
             mod1_common_emb, mod2_common_emb = self.encoder(mod1_seq, mod2_seq)
@@ -119,8 +120,8 @@ class TrainProcess():
 
         mod2_pred = []
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
-            mod1_seq = mod1_seq.cuda().float()
-            mod2_zeros = torch.zeros([mod1_seq.size()[0], self.args.mod2_dim]).cuda().float()
+            mod1_seq = mod1_seq.to(self.device).float()
+            mod2_zeros = torch.zeros([mod1_seq.size()[0], self.args.mod2_dim]).to(self.device).float()
             
             # mod1 seq => encode (1) => mod1_cm_emb => decode (2) => mod2_rec
             mod1_cm_emb, mod2_cm_emb = self.encoder(mod1_seq, mod2_zeros)

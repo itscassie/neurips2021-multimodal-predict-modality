@@ -47,6 +47,7 @@ def get_data_dim(data_path):
     train_mod2 = ad.read_h5ad(train_mod2_pth)
     test_mod2 = ad.read_h5ad(test_mod2_pth)
 
+    logging.info(f"Dataset: ")
     logging.info(f"MOD 1    : {train_mod1.var['feature_types'][0]}")
     logging.info(f"MOD 2    : {train_mod2.var['feature_types'][0]}")
     logging.info(f"MOD1_DIM : {train_mod1.X.shape[1]:5d}")
