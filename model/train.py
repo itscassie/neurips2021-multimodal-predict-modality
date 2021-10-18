@@ -19,19 +19,24 @@ parser = argparse.ArgumentParser(add_help=False)
 model_opts(parser)
 args = parser.parse_known_args()[0]
 
-logging.basicConfig(
-    level=logging.DEBUG, 
-    format='%(message)s',
-    handlers=[
-        logging.FileHandler(f"logs/train_{args.arch}_{args.mode}_{args.name}_{datetime.now().strftime('%b%d-%H-%M')}.log", mode='w'),
+time_now = datetime.now().strftime('%b%d-%H-%M')
+exp_name = f'{args.arch}_{args.mode}_{args.name}_{time_now}'
+
+if args.dryrun:
+    handlers = [logging.StreamHandler()]
+else:
+    handlers = [
+        logging.FileHandler(f"../../logs/train_{exp_name}.log", mode='w'),
         logging.StreamHandler()
         ]
-    )
+
+logging.basicConfig(level=logging.DEBUG, format='%(message)s', handlers=handlers)
 
 # load data
 mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode])
 parser.add_argument('--mod1_dim', default=mod1_dim)
 parser.add_argument('--mod2_dim', default=mod2_dim)
+parser.add_argument('--exp_name', default=exp_name)
 args = parser.parse_args()
 
 

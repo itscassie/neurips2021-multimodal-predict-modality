@@ -15,14 +15,30 @@ from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from utils.metric import rmse
 from modules.model_ae import AutoEncoder
+from tensorboardX import SummaryWriter
 
 class TrainProcess():
     def __init__(self, args):
         self.args = args
-        self.device = torch.device('cuda:{}'.format(args.gpu_ids[0])) if args.gpu_ids else torch.device('cpu')
+        self.writer = SummaryWriter(log_dir=f'../../runs/{args.exp_name}')
+        self.device = torch.device(f'cuda:{args.gpu_ids[0]}') if args.gpu_ids else torch.device('cpu')
 
-        self.trainset = SeqDataset(DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'])
-        self.testset = SeqDataset(DATASET[args.mode]['test_mod1'])
+        if args.selection:
+            self.trainset = SeqDataset(
+                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
+                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
+                )
+            self.testset = SeqDataset(
+                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
+                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
+                )
+
+            args.mod1_dim = args.select_dim if args.mod1_idx_path != None else args.mod1_dim
+            args.mod2_dim = args.select_dim if args.mod2_idx_path != None else args.mod2_dim
+            
+        else:
+            self.trainset = SeqDataset(DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'])
+            self.testset = SeqDataset(DATASET[args.mode]['test_mod1'])
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
@@ -87,12 +103,11 @@ class TrainProcess():
             # (1-3) Cycle loss
             cycle_loss_A = self.mse_loss(mod1_rec, mod1_seq)
             # l1 regularization
-            l1reg_loss = self.l1reg_loss(self.model_AtoB) + self.l1reg_loss(self.model_BtoA)
+            l1reg_loss = (self.l1reg_loss(self.model_AtoB) + self.l1reg_loss(self.model_BtoA)) * self.args.reg_loss_weight
             
             # ABA total loss
-            ABA_loss = rec_loss_B * 10 + cycle_loss_A + l1reg_loss * self.args.reg_loss_weight
+            ABA_loss = (rec_loss_B  + l1reg_loss) * 10 + cycle_loss_A
 
-            self.optimizer.zero_grad()
             ABA_loss.backward()
             self.optimizer.step()
 
@@ -106,10 +121,10 @@ class TrainProcess():
             # (1-3) Cycle loss
             cycle_loss_B = self.mse_loss(mod2_rec2, mod2_seq)
             # l1 regularization
-            l1reg_loss = self.l1reg_loss(self.model_AtoB) + self.l1reg_loss(self.model_BtoA)
+            l1reg_loss = (self.l1reg_loss(self.model_AtoB) + self.l1reg_loss(self.model_BtoA)) * self.args.reg_loss_weight
             
             # BAB total loss
-            BAB_loss = rec_loss_A + cycle_loss_B + l1reg_loss * self.args.reg_loss_weight
+            BAB_loss = rec_loss_A + l1reg_loss + cycle_loss_B
 
             self.optimizer.zero_grad()
             BAB_loss.backward()
@@ -131,7 +146,7 @@ class TrainProcess():
                 )
         
         # save checkpoint
-        filename = f"weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
+        filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
         print(f"saving weight to {filename} ...")
         torch.save({
             'epoch': epoch,
@@ -190,3 +205,10 @@ class TrainProcess():
         mod2_sol = ad.read_h5ad(DATASET[self.args.mode]['test_mod2']).X
         rmse_pred = rmse(mod2_sol, mod2_pred)
         logging.info(f"Eval RMSE: {rmse_pred:5f}")
+
+    def save_AtoB(self):
+        self.load_checkpoint()
+        # save checkpoint
+        filename = f"../../weights/model_{self.args.arch}_AtoB_{self.args.mode}_{self.args.name}.pt"
+        print(f"saving AtoB weight to {filename} ...")
+        torch.save(self.model_AtoB.state_dict(), filename)

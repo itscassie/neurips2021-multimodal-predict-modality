@@ -8,6 +8,12 @@ def model_opts(parser):
 
     parser.add_argument("--hid_dim", type=int, default=1000)
     parser.add_argument("--emb_dim", type=int, default=128)
+    parser.add_argument("--dryrun", action="store_true")
+
+    parser.add_argument("--selection", action="store_true")
+    parser.add_argument("--select_dim", type=int, default=1000)
+    parser.add_argument("--mod1_idx_path", type=str, default=None)
+    parser.add_argument("--mod2_idx_path", type=str, default=None)
 
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--lr_decay_epoch", type=int, default=40)
@@ -16,7 +22,7 @@ def model_opts(parser):
     parser.add_argument("--rec_loss_weight", type=float, default=10)
     parser.add_argument("--cmn_loss_weight", type=float, default=1)
     parser.add_argument("--cos_loss_weight", type=float, default=1)
-    parser.add_argument("--reg_loss_weight", type=float, default=1)
+    parser.add_argument("--reg_loss_weight", type=float, default=0)
 
     parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--pretrain_weight", type=str, default=None)

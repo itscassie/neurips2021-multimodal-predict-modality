@@ -105,7 +105,7 @@ class TrainProcess():
                 f'D: {d_loss.item() :.5f} | ')
         
         # save checkpoint
-        filename = f"weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
+        filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
         print(f"saving weight to {filename} ...")
         torch.save(self.model.state_dict(), filename)
 

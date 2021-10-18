@@ -39,11 +39,11 @@ par = {
 }
 ## VIASH END
 sys.path.append(meta['resources_dir'])
-from model.model_ae import AutoEncoder
-from model.dataloader import SeqDataset
+from model.modules.model_ae import AutoEncoder
+from model.utils.dataloader import SeqDataset
 
 # Methods
-method_id = "mse"
+method_id = "mse_v2"
 
 logging.info('Reading `h5ad` files...')
 input_train_mod1 = ad.read_h5ad(par['input_train_mod1'])
@@ -61,16 +61,16 @@ if input_train_mod2.var['feature_types'][0] == 'ATAC':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/gex2atac_weight.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_gex2atac_e100.pt'
 
 
 elif input_train_mod2.var['feature_types'][0] == 'ADT':
     logging.info("GEX to ADT")
     LOAD_MODEL = MOD1_DIM == 13953 and MOD2_DIM == 134
     
-    FEAT_DIM = 50
+    FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/gex2adt_weight.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_nn_gex2adt_l1reg_e100.pt'
 
 elif input_train_mod1.var['feature_types'][0] == 'ADT':
     logging.info("ADT to GEX")
@@ -78,7 +78,7 @@ elif input_train_mod1.var['feature_types'][0] == 'ADT':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_ADT2GEX.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_adt2gex_e250.pt'
 
 elif input_train_mod1.var['feature_types'][0] == 'ATAC':
     logging.info("ATAC to GEX")
@@ -86,7 +86,7 @@ elif input_train_mod1.var['feature_types'][0] == 'ATAC':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_ATAC2GEX.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_atac2gex_e250.pt'
 
 
 # Method: use pretrain model / use PCA
@@ -101,7 +101,8 @@ if LOAD_MODEL:
     model_ae = AutoEncoder(input_dim=MOD1_DIM, out_dim=MOD2_DIM, feat_dim=FEAT_DIM, hidden_dim=HIDDEN_DIM).float()
     logging.info(model_ae)
 
-    model_ae.load_state_dict(torch.load(MODEL_PTH, map_location=torch.device('cpu')))
+    model_ae.load_state_dict(torch.load(MODEL_PTH))
+    # model_ae.load_state_dict(torch.load(MODEL_PTH, map_location=torch.device('cpu')))
     model_ae.eval()
 
     mod2_matrix = np.zeros((1, MOD2_DIM))
@@ -117,7 +118,7 @@ if LOAD_MODEL:
     logging.info("Finish Prediction")
 
 else:
-    logging.info('PCA...')
+    logging.info('Use PCA...')
     
     # PCA methods 
     input_train = ad.concat(
@@ -171,4 +172,4 @@ adata = ad.AnnData(
         'method_id': method_id,
     },
 )
-adata.write_h5ad(par['output'], compression = "gzip")
+adata.write_h5ad(par['output'], compression="gzip")

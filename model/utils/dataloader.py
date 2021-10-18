@@ -9,9 +9,18 @@ def anndata_reader(ad_path):
     feature_dim = data.shape[1]
     return data, sample_num
 
+def read_from_txt(data_path, seq_type='mod1'):
+    concrete_ind = []
+    with open(data_path, 'r') as f:
+        length = f.readline().strip('index num: ').strip('\n')
+        print(f'{seq_type} index len: {length}')
+        lines = f.readlines()
+        for l in lines: 
+            concrete_ind.append(int(l.strip('\n')))
+    return concrete_ind
 
 class SeqDataset(Dataset):
-    def __init__(self, mod1_path, mod2_path=None):
+    def __init__(self, mod1_path, mod2_path=None, mod1_idx_path=None, mod2_idx_path=None):
         self.mod1_data, self.mod1_sample_num = anndata_reader(mod1_path)
         self.mod2_path = mod2_path
         if mod2_path != None:
@@ -19,6 +28,9 @@ class SeqDataset(Dataset):
             assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
         else:
             self.mod2_data = -1
+        
+        self.mod1_index = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else None
+        self.mod2_index = read_from_txt(mod2_idx_path, 'mod2') if mod2_idx_path != None else None
 
     def __getitem__(self, index):
         mod1_sample = self.mod1_data[index].reshape(-1).astype(np.float64)
@@ -26,6 +38,9 @@ class SeqDataset(Dataset):
             mod2_sample = self.mod2_data[index].reshape(-1).astype(np.float64)
         else:
             mod2_sample = -1
+
+        mod1_sample = mod1_sample[self.mod1_index] if self.mod1_index != None else mod1_sample
+        mod2_sample = mod2_sample[self.mod2_index] if self.mod2_index != None else mod2_sample  
 
         return mod1_sample, mod2_sample
 

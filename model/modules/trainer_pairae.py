@@ -99,7 +99,7 @@ class TrainProcess():
             )
         
         # save checkpoint
-        filename = f"weights/model_{self.args.arch}_{self.args.mode}.pt"
+        filename = f"../../weights/model_{self.args.arch}_{self.args.mode}.pt"
         print(f"saving weight to {filename} ...")
         torch.save({
             'epoch': epoch,

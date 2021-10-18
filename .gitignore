@@ -32,14 +32,14 @@ work/
 sample_data/
 target/
 output/
-scripts/
 
 *.zip
 .nextflow*
 
 # model
-logs/
-weights/
+model/logs/
+model/weights/
+model/outputs/
 model.pt
 .swp
 *.h5ad

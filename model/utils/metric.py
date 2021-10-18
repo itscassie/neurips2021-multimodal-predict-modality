@@ -3,7 +3,7 @@ import anndata as ad
 
 def rmse(mod2_sol, mod2_pred):
     """
-    input: anndata prediction / ans
+    input: prediction / ans
     output: rmse
     """
     tmp = mod2_sol - mod2_pred

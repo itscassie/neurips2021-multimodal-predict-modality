@@ -1,5 +1,5 @@
 functionality:
-  name: mse
+  name: mse_v2
   namespace: predict_modality
   
   # metadata for your method
@@ -49,7 +49,7 @@ functionality:
   # files your script needs
   resources:
     - type: python_script
-      path: script.py
+      path: script_v2.py
     # this include all files in "model/" directory 
     - path: model
   
@@ -59,7 +59,7 @@ functionality:
       path: test.py
     - path: sample_data
     - path: output
-      
+
 # target platforms
 platforms:
 
@@ -68,7 +68,7 @@ platforms:
   - type: docker
     # you need to specify a base image that contains at least bash and python
     image: "pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime"
-    # image: dataintuitive/randpy:py3.8
+    run_args: [ "--gpus all" ] 
     # You can specify additional dependencies with 'setup'. 
     # See https://viash.io/docs/reference_config/platform-docker/#setup-list
     # for more information on how to add more dependencies.
@@ -82,10 +82,9 @@ platforms:
           - anndata
           - scanpy
           - numpy
-          # - torch==1.9.1
 
   # By specifying a 'nextflow', viash will also build a viash module
   # which uses the docker container built above to also be able to 
   # run your method as part of a nextflow pipeline.
   - type: nextflow
-    labels: [ highmem, hightime, highcpu ]
+    labels: [ highmem, hightime, highcpu, gpu ]

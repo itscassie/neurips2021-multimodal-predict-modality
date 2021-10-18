@@ -23,7 +23,7 @@ logging.basicConfig(
     level=logging.DEBUG, 
     format='%(message)s',
     handlers=[
-        logging.FileHandler(f"../../logs/eval_{args.arch}_{args.mode}_{datetime.now().strftime('%b%d-%H-%M')}.log", mode='w'),
+        logging.FileHandler(f"../../logs/model_{args.arch}_{args.mode}_{datetime.now().strftime('%b%d-%H-%M')}.log", mode='w'),
         logging.StreamHandler()
         ]
     )
@@ -39,16 +39,9 @@ for arg, value in vars(args).items():
     logging.info(f"{arg:20s}: {value}")
 logging.info("\n")
 
-if args.arch in ['nn', 'unb_ae', 'decoder']:
-    trainer = TrainProcess_NN(args)
-elif args.arch == 'pairae':
-    trainer = TrainProcess_PairAE(args)
-elif args.arch == 'residual':
-    trainer = TrainProcess_Res(args)
-elif args.arch == 'pix2pix':
-    trainer = TrainProcess_Pix2Pix(args)
-elif args.arch == 'cycle':
+if args.arch == 'cycle':
     trainer = TrainProcess_Cycle(args)
+else:
+    raise BaseException("NOT IMPLEMENTED")
 
-trainer.load_checkpoint()
-trainer.eval()
+trainer.save_AtoB()
