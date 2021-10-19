@@ -106,17 +106,18 @@ class TrainProcess():
             total_loss += loss.item()
             total_rec_loss += rec_loss.item()
 
-            self.writer.add_scalar("rec_loss", rec_loss.item(), epoch)
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
                 f'Total: {total_loss / (batch_idx + 1):.4f} | ' + \
                 f'Rec: {rec_loss.item():.4f} | ' + \
                 f'L1 Reg: {l1reg_loss.item():.4f}')
 
         
+        
         train_rmse = np.sqrt(total_rec_loss / len(self.train_loader))
+        self.writer.add_scalar("train_rmse", train_rmse, epoch)
+        self.writer.add_scalar("rec_loss", rec_loss.item(), epoch)
         print(f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}', end=" ")
         self.eval_epoch(epoch)
-        self.writer.add_scalar("train_rmse", train_rmse, epoch)
 
         # save checkpoint
         if not self.args.dryrun:

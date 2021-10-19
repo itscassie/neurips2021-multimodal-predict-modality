@@ -38,7 +38,7 @@ class TrainProcess():
             
         else:
             self.trainset = SeqDataset(DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'])
-            self.testset = SeqDataset(DATASET[args.mode]['test_mod1'])
+            self.testset = SeqDataset(DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'])
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
@@ -86,6 +86,7 @@ class TrainProcess():
 
         total_rec_loss = 0.0
         total_cycle_loss = 0.0
+        total_rec_loss_B = 0.0
         print(f'Epoch {epoch+1:2d} / {self.args.epoch}')
 
         for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.train_loader):
@@ -135,6 +136,7 @@ class TrainProcess():
             cycle_loss = cycle_loss_A + cycle_loss_B
             total_rec_loss += rec_loss.item()
             total_cycle_loss += cycle_loss.item()
+            total_rec_loss_B += rec_loss_B.item()
 
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
                 f'Mod2: {rec_loss_B.item():.4f} | ' + \
@@ -144,15 +146,37 @@ class TrainProcess():
                 f'BAB: {BAB_loss.item() :.4f} | ' + \
                 f'L1: {l1reg_loss.item():.4f}'
                 )
+
+        train_rmse = np.sqrt(total_rec_loss_B / len(self.train_loader))
+        self.writer.add_scalar("train_rmse", train_rmse, epoch)
+        self.writer.add_scalar("rec_loss", rec_loss_B.item(), epoch)
+        print(f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}', end=" ")
+        
+        self.eval_epoch(epoch)
         
         # save checkpoint
-        filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
-        print(f"saving weight to {filename} ...")
-        torch.save({
-            'epoch': epoch,
-            'AtoB_state_dict': self.model_AtoB.state_dict(),
-            'BtoA_state_dict': self.model_BtoA.state_dict()
-        }, filename)
+        if not self.args.dryrun:
+            filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
+            print(f"saving weight to {filename} ...")
+            torch.save({
+                'epoch': epoch,
+                'AtoB_state_dict': self.model_AtoB.state_dict(),
+                'BtoA_state_dict': self.model_BtoA.state_dict()
+            }, filename)
+
+    def eval_epoch(self, epoch):
+        self.model_AtoB.eval()
+
+        total_rec_loss = 0.0
+        for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.test_loader):
+            mod1_seq = mod1_seq.to(self.device).float()
+            mod2_seq = mod2_seq.to(self.device).float()
+            mod2_rec = self.model_AtoB(mod1_seq)
+            rec_loss = self.mse_loss(mod2_rec, mod2_seq)
+            total_rec_loss += rec_loss.item()
+        test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
+        print(f'| Eval RMSE: {test_rmse:.4f}')
+        self.writer.add_scalar("test_rmse", test_rmse, epoch)
 
     def run(self):
         self.load_checkpoint()

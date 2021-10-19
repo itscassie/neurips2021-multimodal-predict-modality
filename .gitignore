@@ -25,6 +25,8 @@ share/python-wheels/
 *.egg
 MANIFEST
 
+.ipynb_checkpoints/
+
 # docker
 bin/
 work/
@@ -43,3 +45,5 @@ model/outputs/
 model.pt
 .swp
 *.h5ad
+*.png
+*.ipynb
