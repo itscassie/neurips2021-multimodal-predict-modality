@@ -2,7 +2,9 @@ import argparse
 
 def model_opts(parser):
     parser.add_argument("--mode", type=str, choices=['gex2atac', 'gex2adt', 'adt2gex', 'atac2gex'], required=True)
-    parser.add_argument("--arch", type=str, choices=['nn', 'pairae', 'residual', 'pix2pix', 'cycle', 'decoder'], default='nn')
+    parser.add_argument("--arch", type=str, default='nn',
+        choices=['nn', 'pairae', 'residual', 'pix2pix', 'cycle', 'decoder', 'scvi', 'rec'], 
+    )
     parser.add_argument("--epoch", "-e", type=int, default=50)
     parser.add_argument("--batch_size", "-bs", type=int, default=2048)
 

@@ -30,7 +30,8 @@ class Decoder(nn.Module):
             nn.Linear(hidden_dim // 2, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
             nn.LeakyReLU(0.2),
-            nn.Linear(hidden_dim, out_dim)
+            nn.Linear(hidden_dim, out_dim),
+            nn.ReLU()
         )
 
     def forward(self, x):

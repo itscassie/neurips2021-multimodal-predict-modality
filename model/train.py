@@ -10,6 +10,8 @@ from modules.trainer_pairae import TrainProcess as TrainProcess_PairAE
 from modules.trainer_residual import TrainProcess as TrainProcess_Res
 from modules.trainer_pix2pix import TrainProcess as TrainProcess_Pix2Pix
 from modules.trainer_cycle import TrainProcess as TrainProcess_Cycle
+from modules.trainer_scvi import TrainProcess as TrainProcess_SCVI
+from modules.trainer_rec import TrainProcess as TrainProcess_REC
 
 from opts import DATASET, model_opts
 from utils.dataloader import get_data_dim
@@ -55,6 +57,10 @@ elif args.arch == 'pix2pix':
     trainer = TrainProcess_Pix2Pix(args)
 elif args.arch == 'cycle':
     trainer = TrainProcess_Cycle(args)
+elif args.arch == 'scvi':
+    trainer = TrainProcess_SCVI(args)
+elif args.arch == 'rec':
+    trainer = TrainProcess_REC(args)
 
 trainer.run()
 trainer.eval()
