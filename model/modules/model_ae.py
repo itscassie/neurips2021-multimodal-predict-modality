@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, out_dim, hidden_dim):
@@ -38,9 +39,75 @@ class Decoder(nn.Module):
         x_rec = self.decoder(x)
         return x_rec
 
+class ATACDecoder(nn.Module):
+    def __init__(self, input_dim, out_dim, hidden_dim):
+        super(ATACDecoder, self).__init__()
+        self.decoder = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim // 2),
+            nn.BatchNorm1d(hidden_dim // 2),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidden_dim // 2, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidden_dim, out_dim),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x_rec = self.decoder(x)
+        return x_rec
+
+class Decoder_onelayer(nn.Module):
+    def __init__(self, input_dim, out_dim):
+        super(Decoder_onelayer, self).__init__()
+        self.decoder = nn.Sequential(
+            nn.Linear(input_dim, out_dim),
+            nn.BatchNorm1d(out_dim)
+        )
+    
+    def forward(self, x):
+        return self.decoder(x)       
+
+class Distribution_Kernel(nn.Module):
+    def __init__(self, input_dim):
+        super(Distribution_Kernel, self).__init__()
+        self.kernel = nn.Sequential(
+            nn.Conv1d(2, 16, 1),
+            nn.BatchNorm1d(16),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(16, 64, 1),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(64, 32, 1),
+            nn.BatchNorm1d(32),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(32, 1, 1)
+        )    
+        
+        self.batchnorm = nn.Sequential(
+            nn.BatchNorm1d(input_dim, affine = True)
+        ) 
+    
+    def forward(self, x):
+        x = self.kernel(x)
+        x = torch.squeeze(x, 1)
+        return self.batchnorm(x)
+
+
 class AutoEncoder(nn.Module):
     def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
         super(AutoEncoder, self).__init__()
+        self.encoder = Encoder(input_dim, feat_dim, hidden_dim)
+        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
+
+    def forward(self, x):
+        feat = self.encoder(x)
+        x_rec = self.decoder(feat)
+        return x_rec
+
+class ATACAutoEncoder(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
+        super(ATACAutoEncoder, self).__init__()
         self.encoder = Encoder(input_dim, feat_dim, hidden_dim)
         self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
     
@@ -48,6 +115,28 @@ class AutoEncoder(nn.Module):
         feat = self.encoder(x)
         x_rec = self.decoder(feat)
         return x_rec
+
+class KernelAE(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
+        super(KernelAE, self).__init__()
+        self.encoder = Encoder(input_dim, feat_dim, hidden_dim)
+        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)  
+        self.decoder2 = Decoder_onelayer(feat_dim, out_dim)  
+        
+        self.index_bias = Variable(torch.zeros(1, 1, out_dim), requires_grad=True).cuda()
+        # why on earth are you still using variable
+        self.kernel = Distribution_Kernel(out_dim)
+    
+    def forward(self, x):        
+        feat = self.encoder(x) 
+        reconstruct_index = torch.unsqueeze(self.decoder(feat), 1)
+        reconstruct_index2 = torch.unsqueeze(self.decoder2(feat), 1)
+        expand_bias = self.index_bias.repeat(x.shape[0], 1, 1)
+
+        reconstruct_index = torch.cat([reconstruct_index, reconstruct_index2], dim=1)
+        reconstruct = self.kernel(reconstruct_index)
+        
+        return reconstruct
 
 class UnbAutoEncoder(nn.Module):
     def __init__(self, input_dim, out_dim, feat_dim, hid_dim_en, hid_dim_de):

@@ -39,11 +39,12 @@ for (i, mode) in enumerate(DATAPTH):
     test_mod1_pth = mode[2]
     test_mod2_pth = mode[3]
 
-    test_mod1 = ad.read_h5ad(test_mod1_pth)
     train_mod1 = ad.read_h5ad(train_mod1_pth)
     train_mod2 = ad.read_h5ad(train_mod2_pth)
+    test_mod1 = ad.read_h5ad(test_mod1_pth)
     test_mod2 = ad.read_h5ad(test_mod2_pth)
-
+    print(train_mod1)
+    print(train_mod1.var)
     # change here 
     print(f"MOD1: {train_mod1.var['feature_types'][0]}")
     print(f"MOD2: {train_mod2.var['feature_types'][0]}")

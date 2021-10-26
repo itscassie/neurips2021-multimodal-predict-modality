@@ -14,7 +14,7 @@ from utils.metric import rmse
 from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from opts import model_opts, DATASET
-from modules.model_ae import AutoEncoder, UnbAutoEncoder, Decoder
+from modules.model_ae import AutoEncoder, ATACAutoEncoder, UnbAutoEncoder, Decoder, KernelAE
 from tensorboardX import SummaryWriter
 
 class TrainProcess():
@@ -27,34 +27,48 @@ class TrainProcess():
             self.trainset = SeqDataset(
                 DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
                 mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
-                )
+            )
             self.testset = SeqDataset(
                 DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
                 mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
-                )
+            )
 
             args.mod1_dim = args.select_dim if args.mod1_idx_path != None else args.mod1_dim
             args.mod2_dim = args.select_dim if args.mod2_idx_path != None else args.mod2_dim
             
         else:
-            self.trainset = SeqDataset(DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'])
-            self.testset = SeqDataset(DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'])
+            self.trainset = SeqDataset(
+                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2']
+            )
+            self.testset = SeqDataset(
+                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2']
+            )
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
-        if self.args.arch == 'nn':
-            self.model = AutoEncoder(
-                input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
-        elif self.args.arch == 'unb_ae':
+        if args.arch == 'nn':
+            if args.mode == 'gex2atac':
+                self.model = ATACAutoEncoder(
+                    input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
+                    feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+            else:
+                self.model = AutoEncoder(
+                    input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
+                    feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+        elif args.arch == 'unb_ae':
             self.model = UnbAutoEncoder(
                 input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
                 feat_dim=args.emb_dim, hid_dim_en=100, hid_dim_de=args.hid_dim).to(self.device).float()
-        elif self.args.arch == 'decoder':
+        elif args.arch == 'decoder':
             self.model = Decoder(
                 input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
                 hidden_dim=args.hid_dim).to(self.device).float()
+        elif args.arch == 'kernelae':
+            self.model = KernelAE(
+                input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+        
         logging.info(self.model)
 
         self.mse_loss = nn.MSELoss()
@@ -94,10 +108,16 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
+            # mod2_rec = (mod2_rec > 0.15).float() if self.args.mode == "gex2atac" else mod2_rec
+
             rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
 
             loss = rec_loss + l1reg_loss
+
+            if self.args.mode == "gex2atac":
+                mod2_rec_bin = (mod2_rec > 0.5).float()
+                rec_bin_loss = self.mse_loss(mod2_rec_bin, mod2_seq)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -109,8 +129,8 @@ class TrainProcess():
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
                 f'Total: {total_loss / (batch_idx + 1):.4f} | ' + \
                 f'Rec: {rec_loss.item():.4f} | ' + \
-                f'L1 Reg: {l1reg_loss.item():.4f}')
-
+                f'L1 Reg: {l1reg_loss.item():.4f}', end=" ")
+            print(f'| Rec Bin: {rec_bin_loss.item():.4f}') if self.args.mode == "gex2atac" else print("")
         
         
         train_rmse = np.sqrt(total_rec_loss / len(self.train_loader))
@@ -133,6 +153,8 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
+            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
+
             rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             total_rec_loss += rec_loss.item()
         test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
@@ -159,7 +181,8 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
-
+            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
+            
             if use_numpy:
                 mod2_rec = mod2_rec.data.cpu().numpy()
                 mod2_pred = np.vstack((mod2_pred, mod2_rec))
@@ -183,6 +206,8 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             
             mod2_rec = self.model(mod1_seq)
+            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
+            
             mod2_pred.append(mod2_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()

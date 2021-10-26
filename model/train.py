@@ -47,7 +47,7 @@ for arg, value in vars(args).items():
     logging.info(f"{arg:20s}: {value}")
 logging.info("\n")
 
-if args.arch in ['nn', 'unb_ae', 'decoder']:
+if args.arch in ['nn', 'unb_ae', 'decoder', 'kernelae']:
     trainer = TrainProcess_NN(args)
 elif args.arch == 'pairae':
     trainer = TrainProcess_PairAE(args)

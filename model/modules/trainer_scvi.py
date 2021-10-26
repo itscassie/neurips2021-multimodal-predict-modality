@@ -14,7 +14,7 @@ from utils.metric import rmse
 from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from opts import model_opts, DATASET
-from modules.model_scvi import VAE
+from modules.model_scvi import ModTransferSCVI, SCVIModTransfer
 from tensorboardX import SummaryWriter
 
 class TrainProcess():
@@ -43,7 +43,17 @@ class TrainProcess():
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
-        self.model = VAE(args.mod1_dim, args.mod2_dim).to(self.device).float()
+        if args.mode in ["adt2gex", "atac2gex"]:
+            self.model = ModTransferSCVI(
+                mod1_dim=args.mod1_dim, mod2_dim=args.mod2_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim
+            ).to(self.device).float()
+
+        elif args.mode in ["gex2adt", "gex2atac"]:
+            self.model = SCVIModTransfer(
+                mod1_dim=args.mod1_dim, mod2_dim=args.mod2_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim
+            ).to(self.device).float()
         logging.info(self.model)
 
         self.mse_loss = nn.MSELoss()
@@ -82,9 +92,11 @@ class TrainProcess():
                 logging.info(f"no resume checkpoint found at {self.args.pretrain_weight}")
 
     def train_epoch(self, epoch):
-        self.model.autoencoder.requires_grad_(False)
+        if epoch > 50:
+            self.model.scvivae.requires_grad_(False)
+            self.args.lr = 0.1
         self.model.train()
-        self.adjust_learning_rate(self.optimizer, epoch)
+        # self.adjust_learning_rate(self.optimizer, epoch)
 
         total_loss = 0.0
         total_rec_loss = 0.0
@@ -95,22 +107,27 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             
-            mod2_rec = self.model.mod2predict(mod1_seq)
-            inference_outputs = self.model.inference(mod2_rec)
-            generative_outputs = self.model.generative(inference_outputs)
-
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            
             # scvi loss
-            output_loss = self.model.loss(mod2_seq, inference_outputs, generative_outputs)
+            if self.args.mode in ["adt2gex", "atac2gex"]: 
+                output_loss = self.model.loss(mod2_seq, inference_outputs, generative_outputs)
+            elif self.args.mode in ["gex2adt", "gex2atac"]:
+                output_loss = self.model.loss(mod1_seq, inference_outputs, generative_outputs)
+
             scvi_loss = output_loss['loss']
             reconst_loss = output_loss['reconst_loss']
             kl_local = output_loss['kl_local']['kl_divergence_z']
             kl_global = output_loss['kl_global']
 
             # rec loss
-            rec_loss = self.mse_loss(generative_outputs["px_rate"], mod2_seq)            
+            if self.args.mode in ["adt2gex", "atac2gex"]: 
+                rec_loss = self.mse_loss(generative_outputs["px_rate"], mod2_seq)
+            elif self.args.mode in ["gex2adt", "gex2atac"]:
+                rec_loss = self.mse_loss(mod2_rec, mod2_seq) * int(epoch > 10)            
             
             # l1 loss
-            l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
+            l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight * int(epoch > 10)
 
             loss = scvi_loss + rec_loss * self.args.rec_loss_weight + l1reg_loss
 
@@ -149,10 +166,11 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
 
-            mod2_rec = self.model.mod2predict(mod1_seq)
-            inference_outputs = self.model.inference(mod2_rec)
-            generative_outputs = self.model.generative(inference_outputs)
-            rec_loss = self.mse_loss(generative_outputs["px_rate"], mod2_seq)
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["adt2gex", "atac2gex"]: 
+                rec_loss = self.mse_loss(generative_outputs["px_rate"], mod2_seq)
+            elif self.args.mode in ["gex2adt", "gex2atac"]:
+                rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             total_rec_loss += rec_loss.item()
 
         test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
@@ -182,10 +200,11 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
 
-            mod2_rec = self.model.mod2predict(mod1_seq)
-            inference_outputs = self.model.inference(mod2_rec)
-            generative_outputs = self.model.generative(inference_outputs)
-            mod2_scvi_rec = generative_outputs["px_rate"]
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["adt2gex", "atac2gex"]:
+                mod2_scvi_rec = generative_outputs["px_rate"]
+            elif self.args.mode in ["gex2adt", "gex2atac"]:
+                mod2_scvi_rec = mod2_rec
 
             if use_numpy:
                 mod2_scvi_rec = mod2_scvi_rec.data.cpu().numpy()
@@ -209,10 +228,11 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             
-            mod2_rec = self.model.mod2predict(mod1_seq)
-            inference_outputs = self.model.inference(mod2_rec)
-            generative_outputs = self.model.generative(inference_outputs)
-            mod2_scvi_rec = generative_outputs["px_rate"]
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["adt2gex", "atac2gex"]:
+                mod2_scvi_rec = generative_outputs["px_rate"]
+            elif self.args.mode in ["gex2adt", "gex2atac"]:
+                mod2_scvi_rec = mod2_rec
             mod2_pred.append(mod2_scvi_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()

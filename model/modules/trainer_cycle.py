@@ -82,7 +82,7 @@ class TrainProcess():
     def train_epoch(self, epoch):
         self.model_AtoB.train()
         self.model_BtoA.train()
-        # self.adjust_learning_rate(self.optimizer, epoch)
+        self.adjust_learning_rate(self.optimizer, epoch)
 
         total_rec_loss = 0.0
         total_cycle_loss = 0.0
