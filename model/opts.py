@@ -23,6 +23,10 @@ def model_opts(parser):
     parser.add_argument("--mod1_idx_path", type=str, default=None)
     parser.add_argument("--mod2_idx_path", type=str, default=None)
 
+    parser.add_argument("--tfidf", type=int, default=0, choices=[0, 1, 2], 
+        help='0: raw data input, 1: tfidf input, 2: concat [raw, tfidf] data input')
+    parser.add_argument("--idf_path", type=str, default=None)
+
     parser.add_argument("--lr", type=float, default=0.1)
     parser.add_argument("--lr_decay_epoch", type=int, default=80)
     parser.add_argument("--momentum", type=float, default=0.9)

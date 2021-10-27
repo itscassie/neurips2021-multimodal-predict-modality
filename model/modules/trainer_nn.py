@@ -24,24 +24,27 @@ class TrainProcess():
         self.device = torch.device(f'cuda:{args.gpu_ids[0]}') if args.gpu_ids else torch.device('cpu')
 
         if args.selection:
+            mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
             self.trainset = SeqDataset(
                 DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
-                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
+                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
+                tfidf=args.tfidf, mod1_idf=mod1_idf
             )
             self.testset = SeqDataset(
                 DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
-                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path
+                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
+                tfidf=args.tfidf, mod1_idf=mod1_idf
             )
-
-            args.mod1_dim = args.select_dim if args.mod1_idx_path != None else args.mod1_dim
-            args.mod2_dim = args.select_dim if args.mod2_idx_path != None else args.mod2_dim
             
         else:
+            mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
             self.trainset = SeqDataset(
-                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2']
+                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
+                tfidf=args.tfidf, mod1_idf=mod1_idf
             )
             self.testset = SeqDataset(
-                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2']
+                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'],
+                tfidf=args.tfidf, mod1_idf=mod1_idf
             )
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
@@ -108,16 +111,11 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
-            # mod2_rec = (mod2_rec > 0.15).float() if self.args.mode == "gex2atac" else mod2_rec
 
             rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
 
             loss = rec_loss + l1reg_loss
-
-            if self.args.mode == "gex2atac":
-                mod2_rec_bin = (mod2_rec > 0.5).float()
-                rec_bin_loss = self.mse_loss(mod2_rec_bin, mod2_seq)
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -129,8 +127,7 @@ class TrainProcess():
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
                 f'Total: {total_loss / (batch_idx + 1):.4f} | ' + \
                 f'Rec: {rec_loss.item():.4f} | ' + \
-                f'L1 Reg: {l1reg_loss.item():.4f}', end=" ")
-            print(f'| Rec Bin: {rec_bin_loss.item():.4f}') if self.args.mode == "gex2atac" else print("")
+                f'L1 Reg: {l1reg_loss.item():.4f}')
         
         
         train_rmse = np.sqrt(total_rec_loss / len(self.train_loader))
@@ -153,7 +150,6 @@ class TrainProcess():
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
-            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
 
             rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             total_rec_loss += rec_loss.item()
@@ -181,7 +177,6 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_rec = self.model(mod1_seq)
-            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
             
             if use_numpy:
                 mod2_rec = mod2_rec.data.cpu().numpy()
@@ -205,9 +200,7 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             
-            mod2_rec = self.model(mod1_seq)
-            # mod2_rec = (mod2_rec > 0.5).float() if self.args.mode == "gex2atac" else mod2_rec
-            
+            mod2_rec = self.model(mod1_seq)            
             mod2_pred.append(mod2_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()
