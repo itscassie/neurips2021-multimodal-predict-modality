@@ -161,17 +161,5 @@ DATASET = {
     "atac2gex": ATAC2GEX, 
     "adt2gex": ADT2GEX, 
     "gex2adt": GEX2ADT, 
-    "gex2atac": GEX2ATAC,
-    "atac2gex_tfidf": TFIDF_ATAC2GEX, 
-    "adt2gex_tfidf": TFIDF_ADT2GEX,
-    "gex2adt_tfidf": TFIDF_GEX2ADT, 
-    "gex2atac_tfidf": TFIDF_GEX2ATAC,
-    "atac2gex_concat": CONCAT_ATAC2GEX, 
-    "adt2gex_concat": CONCAT_ADT2GEX,
-    "gex2adt_concat": CONCAT_GEX2ADT, 
-    "gex2atac_concat": CONCAT_GEX2ATAC,
-    "atac2gex_5pct": PCT5_ATAC2GEX,
-    "atac2gex_2pct": PCT2_ATAC2GEX,
-    "atac2gex_5pct_tfidf": TFIDF_PCT5_ATAC2GEX,
-    "atac2gex_5pct_concat": CONCAT_PCT5_ATAC2GEX,
+    "gex2atac": GEX2ATAC
 }

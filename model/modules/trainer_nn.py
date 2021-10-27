@@ -23,29 +23,17 @@ class TrainProcess():
         self.writer = SummaryWriter(log_dir=f'../../runs/{args.exp_name}')
         self.device = torch.device(f'cuda:{args.gpu_ids[0]}') if args.gpu_ids else torch.device('cpu')
 
-        if args.selection:
-            mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
-            self.trainset = SeqDataset(
-                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
-                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
-                tfidf=args.tfidf, mod1_idf=mod1_idf
-            )
-            self.testset = SeqDataset(
-                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
-                mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
-                tfidf=args.tfidf, mod1_idf=mod1_idf
-            )
-            
-        else:
-            mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
-            self.trainset = SeqDataset(
-                DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
-                tfidf=args.tfidf, mod1_idf=mod1_idf
-            )
-            self.testset = SeqDataset(
-                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'],
-                tfidf=args.tfidf, mod1_idf=mod1_idf
-            )
+        mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
+        self.trainset = SeqDataset(
+            DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
+            mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
+            tfidf=args.tfidf, mod1_idf=mod1_idf
+        )
+        self.testset = SeqDataset(
+            DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
+            mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
+            tfidf=args.tfidf, mod1_idf=mod1_idf
+        )
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)

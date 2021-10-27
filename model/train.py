@@ -25,6 +25,7 @@ args = parser.parse_known_args()[0]
 time_now = datetime.now().strftime('%b%d-%H-%M')
 exp_name = f'{args.arch}_{args.mode}'
 if args.selection:
+    assert args.mod1_idx_path != None, "need to specified --mod1_idx_path"
     exp_name += f'_select{args.mod1_idx_path.split("/")[-1].replace(".txt", "").replace("index_", "")}'
 if args.tfidf == 1:
     exp_name += f'_tfidf'
