@@ -124,7 +124,6 @@ class KernelAE(nn.Module):
         self.decoder2 = Decoder_onelayer(feat_dim, out_dim)  
         
         self.index_bias = Variable(torch.zeros(1, 1, out_dim), requires_grad=True).cuda()
-        # why on earth are you still using variable
         self.kernel = Distribution_Kernel(out_dim)
     
     def forward(self, x):        
@@ -237,16 +236,38 @@ class Pix2Pix(nn.Module):
 
         return y_fake, fake_score, real_score
 
+class ModelEnsemble(nn.Module):
+    def __init__(self, modelA, modelB, out_dim, device):
+        super(ModelEnsemble, self).__init__()
+        self.modelA = modelA
+        self.modelB = modelB
+        self.w1 = torch.rand(out_dim, requires_grad=True, device=device, dtype=torch.float)
+        self.w2 = torch.rand(1, requires_grad=True, device=device, dtype=torch.float)
+
+    def forward(self, x1, x2):
+        out1 = self.modelA(x1)
+        out2 = self.modelB(x2)
+        # out = out1 * self.w1 + out2 * (1 - self.w1)
+        out = out1 * self.w2 + out2 * (1 - self.w2)
+        return out
+
 if __name__ == "__main__":
     import torch
     bsz = 5
-    input_dim = 100
-    out_dim = 134 
-    feat_dim = 64 
-    hidden_dim = 1000
+    input_dim = 10
+    out_dim = 3
+    feat_dim = 2 
+    hidden_dim = 10
 
-    pix2pix = Pix2Pix(input_dim, out_dim, feat_dim).cuda().float()
-    x = torch.randn(bsz, input_dim).cuda()
-    y_fake, fake_score, real_score = pix2pix(x)
-    print(pix2pix)
-    print(y_fake, fake_score, real_score)
+    # pix2pix = Pix2Pix(input_dim, out_dim, feat_dim).cuda().float()
+    # y_fake, fake_score, real_score = pix2pix(x)
+    # print(pix2pix)
+    # print(y_fake, fake_score, real_score)
+    x1, x2 = torch.randn(bsz, input_dim).cuda(), torch.randn(bsz, input_dim).cuda()
+
+    modelA = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim).cuda().float()
+    modelB = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim).cuda().float()
+    model = ModelEnsemble(modelA, modelB, out_dim, device=torch.device('cuda:0')).cuda().float()
+    print(model)
+    output = model(x1, x2)
+    print(output.shape)

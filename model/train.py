@@ -11,6 +11,7 @@ from modules.trainer_residual import TrainProcess as TrainProcess_Res
 from modules.trainer_pix2pix import TrainProcess as TrainProcess_Pix2Pix
 from modules.trainer_cycle import TrainProcess as TrainProcess_Cycle
 from modules.trainer_scvi import TrainProcess as TrainProcess_SCVI
+from modules.trainer_peakvi import TrainProcess as TrainProcess_PEAKVI
 from modules.trainer_rec import TrainProcess as TrainProcess_REC
 
 from opts import DATASET, model_opts
@@ -60,7 +61,7 @@ for arg, value in vars(args).items():
     logging.info(f"{arg:20s}: {value}")
 logging.info("\n")
 
-if args.arch in ['nn', 'unb_ae', 'decoder', 'kernelae']:
+if args.arch in ['nn', 'decoder', 'kernelae']:
     trainer = TrainProcess_NN(args)
 elif args.arch == 'pairae':
     trainer = TrainProcess_PairAE(args)
@@ -72,8 +73,10 @@ elif args.arch == 'cycle':
     trainer = TrainProcess_Cycle(args)
 elif args.arch == 'scvi':
     trainer = TrainProcess_SCVI(args)
-elif args.arch == 'rec':
+elif args.arch in ['rec', 'peakrec', 'scvirec']:
     trainer = TrainProcess_REC(args)
+elif args.arch == 'peakvi':
+    trainer = TrainProcess_PEAKVI(args)
 
 trainer.run()
 trainer.eval()

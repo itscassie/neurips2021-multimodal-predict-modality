@@ -19,18 +19,20 @@ parser = argparse.ArgumentParser(add_help=False)
 model_opts(parser)
 args = parser.parse_known_args()[0]
 
+
 logging.basicConfig(
     level=logging.DEBUG, 
     format='%(message)s',
     handlers=[
-        logging.FileHandler(f"../../logs/model_{args.arch}_{args.mode}_{datetime.now().strftime('%b%d-%H-%M')}.log", mode='w'),
+        logging.FileHandler(f"../../logs/{args.checkpoint.replace('../', '').replace('weights/', '')}.log", mode='w'),
         logging.StreamHandler()
-        ]
-    )
+    ]
+)
 
-mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode])
+mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode], args)
 parser.add_argument('--mod1_dim', default=mod1_dim)
 parser.add_argument('--mod2_dim', default=mod2_dim)
+parser.add_argument('--exp_name', default="save_model")
 args = parser.parse_args()
 
 
@@ -44,4 +46,6 @@ if args.arch == 'cycle':
 else:
     raise BaseException("NOT IMPLEMENTED")
 
+trainer.load_checkpoint()
+trainer.eval()
 trainer.save_AtoB()

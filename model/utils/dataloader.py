@@ -35,6 +35,7 @@ class SeqDataset(Dataset):
             self.mod1_raw, self.mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
             # selection
             self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
+            self.mod1_idf = self.mod1_idf.astype(np.float64)
 
         if mod2_path != None:
             self.mod2_data, _, self.mod2_sample_num = data_reader(mod2_path, count=False)
@@ -74,6 +75,100 @@ class SeqDataset(Dataset):
     def __len__(self):
         return self.mod1_sample_num
 
+class ChainSeqDataset(Dataset):
+    def __init__(
+        self, 
+        mod1_path, 
+        mod2_path=None,
+        A_selection=False,
+        B_selection=False ,
+        mod1_idx_path=None, 
+        mod2_idx_path=None, 
+        A_tfidf=0, 
+        B_tfidf=0, 
+        mod1_idf=None
+    ):
+        self.mod2_path = mod2_path
+        self.A_tfidf = A_tfidf
+        self.B_tfidf = B_tfidf
+        self.A_selection = A_selection
+        self.B_selection = B_selection
+
+        (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
+        (self.mod2_index, _) = read_from_txt(mod2_idx_path, 'mod2') if mod2_idx_path != None else (None, None)
+
+
+        if A_tfidf == 0:
+            self.A_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path, count=True)
+        elif A_tfidf in [1, 2]:
+            self.A_mod1_raw, self.A_mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            # selection
+            self.A_mod1_idf = mod1_idf[:, self.mod1_index] if self.A_selection else mod1_idf
+            self.A_mod1_idf = self.A_mod1_idf.astype(np.float64)
+
+        if B_tfidf == 0:
+            self.B_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path, count=True)
+        elif B_tfidf in [1, 2]:
+            self.B_mod1_raw, self.B_mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            # selection
+            self.B_mod1_idf = mod1_idf[:, self.mod1_index] if self.B_selection else mod1_idf
+            self.B_mod1_idf = self.B_mod1_idf.astype(np.float64)
+
+        
+        if mod2_path != None:
+            self.mod2_data, _, self.mod2_sample_num = data_reader(mod2_path, count=False)
+            assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
+        else:
+            self.mod2_data = -1
+        
+
+    def __getitem__(self, index):
+        # mod1, mod2 sample
+        A_mod1_sample = self.A_mod1_data[index].reshape(-1).astype(np.float64)
+        B_mod1_sample = self.B_mod1_data[index].reshape(-1).astype(np.float64)
+        
+        if self.mod2_path != None:
+            mod2_sample = self.mod2_data[index].reshape(-1).astype(np.float64)
+        else:
+            mod2_sample = -1
+        
+        # selection
+        A_mod1_sample = A_mod1_sample[self.mod1_index] if self.A_selection else A_mod1_sample
+        B_mod1_sample = B_mod1_sample[self.mod1_index] if self.B_selection else B_mod1_sample
+        mod2_sample = mod2_sample[self.mod2_index] if self.mod2_index != None else mod2_sample
+        
+        A_mod1_feature = A_mod1_sample
+        B_mod1_feature = B_mod1_sample
+        
+        # tfidf
+        if self.A_tfidf in [1, 2]:
+            A_mod1_tf = A_mod1_sample / np.sum(A_mod1_sample)
+            A_mod1_tfidf = (A_mod1_tf * self.A_mod1_idf).reshape(-1).astype(np.float64)
+            
+            if self.A_tfidf == 1:
+                A_mod1_feature = A_mod1_tfidf
+            
+            elif self.A_tfidf == 2:
+                A_mod1_raw = self.A_mod1_raw[index].reshape(-1).astype(np.float64)
+                A_mod1_raw = A_mod1_raw[self.mod1_index] if self.A_selection else A_mod1_raw
+                A_mod1_feature = np.concatenate((A_mod1_tfidf, A_mod1_raw), axis=0)
+
+        if self.B_tfidf in [1, 2]:
+            B_mod1_tf = B_mod1_sample / np.sum(B_mod1_sample)
+            B_mod1_tfidf = (B_mod1_tf * self.B_mod1_idf).reshape(-1).astype(np.float64)
+            
+            if self.B_tfidf == 1:
+                B_mod1_feature = B_mod1_tfidf
+            
+            elif self.B_tfidf == 2:
+                B_mod1_raw = self.B_mod1_raw[index].reshape(-1).astype(np.float64)
+                B_mod1_raw = B_mod1_raw[self.mod1_index] if self.B_selection else B_mod1_raw
+                B_mod1_feature = np.concatenate((B_mod1_tfidf, B_mod1_raw), axis=0)
+
+        return A_mod1_feature, B_mod1_feature, mod2_sample
+
+    def __len__(self):
+        return self.mod1_sample_num
 
 def get_data_dim(data_path, args):
     """
@@ -96,6 +191,8 @@ def get_data_dim(data_path, args):
         mod1_dim = mod1_select_dim
     mod1_dim = mod1_dim * 2 if args.tfidf == 2 else mod1_dim
 
+    mod2_dim = train_mod2.X.shape[1]
+
     logging.info(f"Dataset: ")
     logging.info(f"MOD 1    : {train_mod1.var['feature_types'][0]}")
     logging.info(f"MOD 2    : {train_mod2.var['feature_types'][0]}")
@@ -109,6 +206,11 @@ def get_data_dim(data_path, args):
     assert int(train_mod1.X.shape[0]) == int(train_mod2.X.shape[0]), "train # mod1 != mod2"
     assert int(test_mod1.X.shape[0]) == int(test_mod2.X.shape[0]), "train # mod1 != mod2"
 
+    return mod1_dim, mod2_dim
 
+def get_processed_dim(mod1_dim, args, selection, tfidf):
+    if selection:
+        _, mod1_dim = read_from_txt(args.mod1_idx_path)
+    mod1_dim = mod1_dim * 2 if tfidf == 2 else mod1_dim
 
-    return mod1_dim, train_mod2.X.shape[1]
+    return mod1_dim

@@ -26,7 +26,7 @@ logging.basicConfig(
     )
 
 # load data
-mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode])
+mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode], args)
 parser.add_argument('--mod1_dim', default=mod1_dim)
 parser.add_argument('--mod2_dim', default=mod2_dim)
 args = parser.parse_args()

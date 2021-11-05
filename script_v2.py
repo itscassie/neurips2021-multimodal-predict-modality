@@ -61,7 +61,7 @@ if input_train_mod2.var['feature_types'][0] == 'ATAC':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_gex2atac_e100.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/gex2atac/model_cycle_AtoB_gex2atac_e100.pt'
 
 
 elif input_train_mod2.var['feature_types'][0] == 'ADT':
@@ -70,7 +70,7 @@ elif input_train_mod2.var['feature_types'][0] == 'ADT':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_nn_gex2adt_l1reg_e100.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/gex2adt/model_nn_gex2adt_l1reg_e100.pt'
 
 elif input_train_mod1.var['feature_types'][0] == 'ADT':
     logging.info("ADT to GEX")
@@ -78,7 +78,7 @@ elif input_train_mod1.var['feature_types'][0] == 'ADT':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_adt2gex_e250.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/adt2gex/model_cycle_AtoB_adt2gex_e250.pt'
 
 elif input_train_mod1.var['feature_types'][0] == 'ATAC':
     logging.info("ATAC to GEX")
@@ -86,7 +86,7 @@ elif input_train_mod1.var['feature_types'][0] == 'ATAC':
     
     FEAT_DIM = 128
     HIDDEN_DIM = 1000
-    MODEL_PTH = meta['resources_dir'] + '/model/weights/model_cycle_AtoB_atac2gex_e250.pt'
+    MODEL_PTH = meta['resources_dir'] + '/model/weights/atac2gex/model_cycle_AtoB_atac2gex_e250.pt'
 
 
 # Method: use pretrain model / use PCA

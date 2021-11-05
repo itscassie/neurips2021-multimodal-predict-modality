@@ -14,7 +14,8 @@ from utils.metric import rmse
 from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from opts import model_opts, DATASET
-from modules.model_ae import AutoEncoder, ATACAutoEncoder, UnbAutoEncoder, Decoder, KernelAE
+from modules.model_scvi import ModTransferSCVI, SCVIModTransfer
+from modules.model_peakvi import PEAKVAE, ModTransferPEAKVI, PEAKVIModTransfer
 from tensorboardX import SummaryWriter
 
 class TrainProcess():
@@ -34,41 +35,29 @@ class TrainProcess():
             mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
             tfidf=args.tfidf, mod1_idf=mod1_idf
         )
-
+        
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
+                
+        if args.mode in ["atac2gex"]:
+            self.model =  PEAKVIModTransfer(
+                mod1_dim=args.mod1_dim, mod2_dim=args.mod2_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim
+            ).to(self.device).float()
 
-        if args.arch == 'nn':
-            if args.mode == 'gex2atac':
-                self.model = ATACAutoEncoder(
-                    input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                    feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
-            else:
-                self.model = AutoEncoder(
-                    input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                    feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
-        elif args.arch == 'unb_ae':
-            self.model = UnbAutoEncoder(
-                input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                feat_dim=args.emb_dim, hid_dim_en=100, hid_dim_de=args.hid_dim).to(self.device).float()
-        elif args.arch == 'decoder':
-            self.model = Decoder(
-                input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                hidden_dim=args.hid_dim).to(self.device).float()
-        elif args.arch == 'kernelae':
-            self.model = KernelAE(
-                input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-                feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
-        
+        elif args.mode in ["gex2atac"]:
+            self.model = ModTransferPEAKVI(
+                mod1_dim=args.mod1_dim, mod2_dim=args.mod2_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim
+            ).to(self.device).float()
         logging.info(self.model)
 
         self.mse_loss = nn.MSELoss()
         self.l1reg_loss = L1regularization(weight_decay=0.1)
-        self.eval_best = 100
 
-        self.optimizer = optim.SGD(
+        self.optimizer = optim.Adam(
             self.model.parameters(),
-            lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+            lr=args.lr, eps=0.01, weight_decay=1e-6)
 
     def adjust_learning_rate(self, optimizer, epoch):
         lr = self.args.lr * (0.5 ** ((epoch - 0) // self.args.lr_decay_epoch))
@@ -80,6 +69,7 @@ class TrainProcess():
     
     def load_checkpoint(self):
         if self.args.checkpoint is not None:
+            print("loading checkpoint ...")
             if os.path.isfile(self.args.checkpoint):
                 logging.info(f"loading checkpoint: {self.args.checkpoint}")
                 checkpoint = torch.load(self.args.checkpoint)
@@ -87,9 +77,26 @@ class TrainProcess():
             else:
                 logging.info(f"no resume checkpoint found at {self.args.checkpoint}")
 
+    def load_pretrain_ae(self):
+        if self.args.pretrain_weight is not None:
+            print("loading pretrain ae weight ...")
+            if os.path.isfile(self.args.pretrain_weight):
+                logging.info(f"loading checkpoint: {self.args.pretrain_weight}")
+                checkpoint = torch.load(self.args.pretrain_weight)
+                self.model.autoencoder.load_state_dict(checkpoint)
+            else:
+                logging.info(f"no resume checkpoint found at {self.args.pretrain_weight}")
+
     def train_epoch(self, epoch):
+        if epoch > 100:
+            if args.mode in ["atac2gex"]:
+                self.model.peakvae.requires_grad_(False)
+                self.args.lr = 0.1
+            elif args.mode in ["gex2atac"]:
+                self.model.autoencoder.requires_grad_(False)
+                self.args.lr = 1e-3
         self.model.train()
-        self.adjust_learning_rate(self.optimizer, epoch)
+        # self.adjust_learning_rate(self.optimizer, epoch)
 
         total_loss = 0.0
         total_rec_loss = 0.0
@@ -99,12 +106,33 @@ class TrainProcess():
 
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
-            mod2_rec = self.model(mod1_seq)
+            
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            
+            # peakvi loss
+            if self.args.mode in ["atac2gex"]: 
+                output_loss = self.model.loss(mod1_seq, inference_outputs, generative_outputs)
+            elif self.args.mode in ["gex2atac"]:
+                output_loss = self.model.loss(mod2_seq, inference_outputs, generative_outputs)
 
-            rec_loss = self.mse_loss(mod2_rec, mod2_seq)
-            l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
+            peakvi_loss = output_loss['loss'] * int(epoch > 0) if self.args.mode in ["gex2atac"] else output_loss['loss']
+            reconst_loss = output_loss['rl'] 
+            kl_local = output_loss['kld'] 
 
-            loss = rec_loss + l1reg_loss
+            # rec loss
+            if self.args.mode in ["atac2gex"]: 
+                rec_loss = self.mse_loss(mod2_rec, mod2_seq) * int(epoch > 20)            
+            
+            elif self.args.mode in ["gex2atac"]:
+                if epoch < 0:
+                    rec_loss = self.mse_loss(mod2_rec, mod2_seq)
+                elif epoch >= 0:
+                    rec_loss = self.mse_loss(generative_outputs["p"], mod2_seq)
+            
+            # l1 loss
+            l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight * int(epoch > 20)
+
+            loss = peakvi_loss + rec_loss + l1reg_loss
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -114,53 +142,50 @@ class TrainProcess():
             total_rec_loss += rec_loss.item()
 
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
-                f'Total: {total_loss / (batch_idx + 1):.4f} | ' + \
-                f'Rec: {rec_loss.item():.4f} | ' + \
-                f'L1 Reg: {l1reg_loss.item():.4f}')
-        
+                f'SCVI Total: {total_loss / (batch_idx + 1):.4f} | ' + \
+                f'SCVI Recon: {torch.mean(reconst_loss).item():.4f} | ' + \
+                f'SCVI KL: {torch.mean(kl_local).item():3.4f} | ' + \
+                f'MOD2 REC: {rec_loss.item() * self.args.rec_loss_weight:2.4f} | ' + \
+                f'L1 Reg: {l1reg_loss.item():.4f}'
+            )
         
         train_rmse = np.sqrt(total_rec_loss / len(self.train_loader))
-        test_rmse = self.eval_epoch(epoch)
-        (self.eval_best, save_best) = (test_rmse, True) if test_rmse < self.eval_best else (self.eval_best, False)
-
-        logging.info(
-            f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}' + \
-            f'| Eval RMSE: {test_rmse:.4f} | Eval best: {self.eval_best:.4f}'
-        )
         self.writer.add_scalar("train_rmse", train_rmse, epoch)
         self.writer.add_scalar("rec_loss", rec_loss.item(), epoch)
-        self.writer.add_scalar("test_rmse", test_rmse, epoch)
-        
+        logging.info(f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}')
+        # print(f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}', end=" ")
+        self.eval_epoch(epoch)
+
         # save checkpoint
         if not self.args.dryrun:
-            filename = f"../../weights/model_{self.args.exp_name}.pt"
+            filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
             print(f"saving weight to {filename} ...")
             torch.save(self.model.state_dict(), filename)
 
-            # best weight
-            if save_best and epoch > 50:
-                filename = f"../../weights/model_best_{self.args.exp_name}.pt"
-                print(f"saving best weight to {filename} ...")
-                torch.save(self.model.state_dict(), filename)
-
     def eval_epoch(self, epoch):
         self.model.eval()
-
         total_rec_loss = 0.0
         for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
-            mod2_rec = self.model(mod1_seq)
 
-            rec_loss = self.mse_loss(mod2_rec, mod2_seq)
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["atac2gex"]: 
+                rec_loss = self.mse_loss(mod2_rec, mod2_seq)            
+            elif self.args.mode in ["gex2atac"]:
+                rec_loss = self.mse_loss(generative_outputs["p"], mod2_seq)
             total_rec_loss += rec_loss.item()
-        test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
 
-        return test_rmse
+        test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
+        # print(f'| Eval RMSE: {test_rmse:.4f}')
+        logging.info(f'Epoch {epoch+1:3d} / {self.args.epoch} | Eval RMSE: {test_rmse:.4f}')
+        self.writer.add_scalar("test_rmse", test_rmse, epoch)
 
 
     def run(self):
+        self.load_pretrain_ae()
         self.load_checkpoint()
+
         print("start training ...")
         for e in range(self.args.epoch):
             self.train_epoch(e)
@@ -172,18 +197,23 @@ class TrainProcess():
         logging.info(f"Mode: {self.args.mode}")
         
         # train set rmse
-        use_numpy = True if self.args.mode == 'atac2gex' else False
+        use_numpy = True if self.args.mode in ['atac2gex'] else False
         mod2_pred = np.zeros((1, self.args.mod2_dim)) if use_numpy else []
 
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
-            mod2_rec = self.model(mod1_seq)
-            
+
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["atac2gex"]: 
+                mod2_scvi_rec = mod2_rec           
+            elif self.args.mode in ["gex2atac"]:
+                mod2_scvi_rec = generative_outputs["p"]
+
             if use_numpy:
-                mod2_rec = mod2_rec.data.cpu().numpy()
-                mod2_pred = np.vstack((mod2_pred, mod2_rec))
+                mod2_scvi_rec = mod2_scvi_rec.data.cpu().numpy()
+                mod2_pred = np.vstack((mod2_pred, mod2_scvi_rec))
             else:
-                mod2_pred.append(mod2_rec)
+                mod2_pred.append(mod2_scvi_rec)
 
         if use_numpy:
             mod2_pred = mod2_pred[1:,]
@@ -201,8 +231,12 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             
-            mod2_rec = self.model(mod1_seq)            
-            mod2_pred.append(mod2_rec)
+            mod2_rec, inference_outputs, generative_outputs = self.model(mod1_seq)
+            if self.args.mode in ["atac2gex"]: 
+                mod2_scvi_rec = mod2_rec           
+            elif self.args.mode in ["gex2atac"]:
+                mod2_scvi_rec = generative_outputs["p"]
+            mod2_pred.append(mod2_scvi_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()
         mod2_pred = csc_matrix(mod2_pred)

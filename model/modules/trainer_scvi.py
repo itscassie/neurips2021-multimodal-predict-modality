@@ -86,10 +86,19 @@ class TrainProcess():
             else:
                 logging.info(f"no resume checkpoint found at {self.args.pretrain_weight}")
 
+    def load_pretrain_scvi(self):
+        if self.args.pretrain_scvi is not None:
+            print("loading pretrain ae scvi ...")
+            if os.path.isfile(self.args.pretrain_scvi):
+                logging.info(f"loading checkpoint: {self.args.pretrain_scvi}")
+                checkpoint = torch.load(self.args.pretrain_scvi)
+                self.model.scvivae.load_state_dict(checkpoint)
+            else:
+                logging.info(f"no resume checkpoint found at {self.args.pretrain_scvi}")
+
     def train_epoch(self, epoch):
-        if epoch > 50:
-            self.model.scvivae.requires_grad_(False)
-            self.args.lr = 0.1
+        self.model.autoencoder.requires_grad_(False)
+        self.model.scvivae.requires_grad_(False)
         self.model.train()
         # self.adjust_learning_rate(self.optimizer, epoch)
 
@@ -176,6 +185,7 @@ class TrainProcess():
 
     def run(self):
         self.load_pretrain_ae()
+        self.load_pretrain_scvi()
         self.load_checkpoint()
 
         print("start training ...")
@@ -189,7 +199,7 @@ class TrainProcess():
         logging.info(f"Mode: {self.args.mode}")
         
         # train set rmse
-        use_numpy = True if self.args.mode in ['atac2gex'] else False
+        use_numpy = True if self.args.mode in ['atac2gex', 'adt2gex', "gex2adt", "gex2atac"] else False
         mod2_pred = np.zeros((1, self.args.mod2_dim)) if use_numpy else []
 
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):

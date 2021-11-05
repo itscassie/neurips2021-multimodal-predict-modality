@@ -32,12 +32,14 @@ GEX2ATAC = [
 '../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod2.h5ad' 
 ]
 
-DATAPTH = [ATAC2GEX,] #ADT2GEX, GEX2ADT, GEX2ATAC,
+# config
+DATAPTH = [ATAC2GEX] # choices: ATAC2GEX, ADT2GEX, GEX2ADT, GEX2ATAC
+pct = 2 # percentage of filter gene
 """
-ATAC2GEX => mod 1 (17394, 116490)
-            {pct: 5, min_cells: 869, feature_num: 13680}
-
-
+ATAC2GEX 
+=> mod 1 (17394, 116490)
+    {pct: 5, min_cells: 869, feature_num: 13680}
+    {pct: 2, min_cells: 347, feature_num: 29917}
 """
 for (i, mode) in enumerate(DATAPTH):
     print(f"DIRECTION [{i + 1} / {len(DATAPTH)}]")
@@ -57,7 +59,7 @@ for (i, mode) in enumerate(DATAPTH):
         fill_value=0,
         index_unique="-"
     )
-    min_cells = int(X_raw.X.shape[0] * 0.05)
+    min_cells = int(X_raw.X.shape[0] * 0.01 * pct)
     print(f'min cells: {min_cells}')
     print(X_raw.shape)
     
@@ -87,9 +89,9 @@ for (i, mode) in enumerate(DATAPTH):
 
     file_path = f"../../../indexs/{str(train_mod1.var['feature_types'][0]).lower()}2{str(train_mod2.var['feature_types'][0]).lower()}"
     os.makedirs(file_path, exist_ok=True)
-    index_file = open(f'{file_path}/index_5pct.txt', 'w')
+    index_file = open(f'{file_path}/index_{pct}pct.txt', 'w')
     index_file.write(f'index num: {len(mod1_5pct_idx)}\n')
     for ind in mod1_5pct_idx:
         index_file.write(str(ind)+'\n')
 
-    print(f'finish saving {file_path}/index_5pct.txt')
+    print(f'finish saving {file_path}/index_{pct}pct.txt')

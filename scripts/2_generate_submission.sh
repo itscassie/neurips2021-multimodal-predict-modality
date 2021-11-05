@@ -118,9 +118,12 @@ zip -9 -r -q submission.zip . \
   --exclude=nextflow.config \
   --exclude=output/datasets/* \
   --exclude=bin/* \
+  --exclude=output/evaluation/* \
   --exclude=model/logs/* \
-  --exclude=model/weights/* \
-  --exclude=model/outputs/*
+  --exclude=model/analysis/* \
+  --exclude=*.ipynb \
+  --exclude=model/weights/atac2gex/model_cycle_AtoB_atac2gex_e250.pt \
+  --exclude=model/weights/adt2gex/model_cycle_AtoB_adt2gex_e250.pt
 
 # print message
 echo ""

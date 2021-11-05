@@ -1,3 +1,4 @@
+import argparse
 import numpy as np
 import anndata as ad
 from datetime import datetime
@@ -9,17 +10,14 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
-from model_ae import AutoEncoder
-from dataloader import SeqDataset
-import argparse
+from modules.model_ae import AutoEncoder
+from utils.dataloader import SeqDataset
 from opts import model_opts as opt
 
 parser = argparse.ArgumentParser()
 opt(parser)
 args = parser.parse_args()
 
-import pdb
-pdb.set_trace()
 
 ADT2GEX = [
 '../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_train_mod1.h5ad', 
@@ -97,7 +95,7 @@ for (i, mode) in enumerate(DATAPTH):
     testset = SeqDataset(test_mod1_pth, test_mod2_pth)
 
     train_loader = DataLoader(trainset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loader = DataLoader(testset, batch_size=256, shuffle=False)
+    test_loader = DataLoader(testset, batch_size=BATCH_SIZE, shuffle=False)
 
     """
     for i, (mod1, mod2) in enumerate(train_loader):

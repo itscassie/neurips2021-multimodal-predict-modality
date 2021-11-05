@@ -50,6 +50,7 @@ class TrainProcess():
         self.mse_loss = nn.MSELoss()
         self.adv_loss = nn.BCELoss()
         self.l1reg_loss = L1regularization(weight_decay=0.1)
+        self.eval_best = 100
 
         self.optimizer = optim.SGD([
             {'params': self.model_AtoB.parameters()}, 
@@ -143,21 +144,47 @@ class TrainProcess():
                 )
 
         train_rmse = np.sqrt(total_rec_loss_B / len(self.train_loader))
+        test_rmse = self.eval_epoch(epoch)
+        (self.eval_best, save_best) = (test_rmse, True) if test_rmse < self.eval_best else (self.eval_best, False)
+
+        logging.info(
+            f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f} ' + \
+            f'| Eval RMSE: {test_rmse:.4f} | Eval best: {self.eval_best:.4f}'
+        )
+        
         self.writer.add_scalar("train_rmse", train_rmse, epoch)
         self.writer.add_scalar("rec_loss", rec_loss_B.item(), epoch)
-        print(f'Epoch {epoch+1:3d} / {self.args.epoch} | Train RMSE: {train_rmse:.4f}', end=" ")
+        self.writer.add_scalar("test_rmse", test_rmse, epoch)
         
-        self.eval_epoch(epoch)
         
         # save checkpoint
         if not self.args.dryrun:
-            filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
+            filename = f"../../weights/model_{self.args.exp_name}.pt"
             print(f"saving weight to {filename} ...")
             torch.save({
                 'epoch': epoch,
                 'AtoB_state_dict': self.model_AtoB.state_dict(),
                 'BtoA_state_dict': self.model_BtoA.state_dict()
             }, filename)
+
+            # A to B
+            filenameAtoB = f"../../weights/model_AtoB_{self.args.exp_name}.pt"
+            print(f"saving AtoB weight to {filenameAtoB} ...")
+            torch.save(self.model_AtoB.state_dict(), filenameAtoB)
+
+            if save_best and epoch > 50:
+                filename = f"../../weights/model_best_{self.args.exp_name}.pt"
+                print(f"saving best weight to {filename} ...")
+                torch.save({
+                    'epoch': epoch,
+                    'AtoB_state_dict': self.model_AtoB.state_dict(),
+                    'BtoA_state_dict': self.model_BtoA.state_dict()
+                }, filename)
+
+                # A to B
+                filenameAtoB = f"../../weights/model_best_AtoB_{self.args.exp_name}.pt"
+                print(f"saving best AtoB weight to {filenameAtoB} ...")
+                torch.save(self.model_AtoB.state_dict(), filenameAtoB)
 
     def eval_epoch(self, epoch):
         self.model_AtoB.eval()
@@ -170,8 +197,8 @@ class TrainProcess():
             rec_loss = self.mse_loss(mod2_rec, mod2_seq)
             total_rec_loss += rec_loss.item()
         test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
-        print(f'| Eval RMSE: {test_rmse:.4f}')
-        self.writer.add_scalar("test_rmse", test_rmse, epoch)
+        
+        return test_rmse
 
     def run(self):
         self.load_checkpoint()
@@ -226,8 +253,7 @@ class TrainProcess():
         logging.info(f"Eval RMSE: {rmse_pred:5f}")
 
     def save_AtoB(self):
-        self.load_checkpoint()
         # save checkpoint
-        filename = f"../../weights/model_{self.args.arch}_AtoB_{self.args.mode}_{self.args.name}.pt"
+        filename = f"../../weights/model_AtoB_{self.args.checkpoint.replace('../', '').replace('weights/', '').replace('model_', '')}"
         print(f"saving AtoB weight to {filename} ...")
         torch.save(self.model_AtoB.state_dict(), filename)

@@ -14,7 +14,9 @@ from utils.metric import rmse
 from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from opts import model_opts, DATASET
-from modules.model_ae import AutoEncoder, UnbAutoEncoder, Decoder
+from modules.model_ae import AutoEncoder
+from modules.model_peakvi import PEAKVAE
+from modules.model_scvi import VAE
 from tensorboardX import SummaryWriter
 
 class TrainProcess():
@@ -38,10 +40,15 @@ class TrainProcess():
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
-
-        self.model = AutoEncoder(
-            input_dim=args.mod1_dim, out_dim=args.mod1_dim, 
-            feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+        if args.arch == 'rec':
+            self.model = AutoEncoder(
+                input_dim=args.mod1_dim, out_dim=args.mod1_dim, 
+                feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+        elif args.arch == 'peakrec':
+            self.model = PEAKVAE(args.mod1_dim).to(self.device).float()
+        
+        elif args.arch == 'scvirec':
+            self.model = VAE(args.mod1_dim).to(self.device).float()
 
         logging.info(self.model)
 
@@ -80,11 +87,38 @@ class TrainProcess():
         for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.train_loader):
 
             mod1_seq = mod1_seq.to(self.device).float()
-            mod1_rec = self.model(mod1_seq)            
-            rec_loss = self.mse_loss(mod1_rec, mod1_seq)
+            if self.args.arch == 'rec':
+                mod1_rec = self.model(mod1_seq)            
+                rec_loss = self.mse_loss(mod1_rec, mod1_seq)
+
+            elif self.args.arch == 'peakrec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                output_loss = self.model.loss(mod1_seq, inference_outputs, generative_outputs)
+                peakvi_loss = output_loss['loss']
+                reconst_loss = output_loss['rl'] 
+                kl_local = output_loss['kld']
+                rec_loss = self.mse_loss(generative_outputs["p"], mod1_seq)
+
+            elif self.args.arch == 'scvirec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                output_loss = self.model.loss(mod1_seq, inference_outputs, generative_outputs)
+                
+                scvi_loss = output_loss['loss']
+                reconst_loss = output_loss['reconst_loss']
+                kl_local = output_loss['kl_local']['kl_divergence_z']
+                kl_global = output_loss['kl_global']
+                rec_loss = self.mse_loss(generative_outputs["px_rate"], mod1_seq)
+
             l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
 
-            loss = rec_loss + l1reg_loss
+            if self.args.arch == 'rec':
+                loss = rec_loss + l1reg_loss
+            elif self.args.arch == 'peakrec':
+                loss = peakvi_loss + l1reg_loss
+            elif self.args.arch == 'scvirec':
+                loss = scvi_loss + l1reg_loss
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -96,6 +130,7 @@ class TrainProcess():
             print(f'Epoch {epoch+1:2d} [{batch_idx+1:2d} /{len(self.train_loader):2d}] | ' + \
                 f'Total: {total_loss / (batch_idx + 1):.4f} | ' + \
                 f'Rec: {rec_loss.item():.4f} | ' + \
+                f'KL: {torch.mean(kl_local).item():3.4f} | ' + \
                 f'L1 Reg: {l1reg_loss.item():.4f}')
 
         
@@ -108,7 +143,7 @@ class TrainProcess():
 
         # save checkpoint
         if not self.args.dryrun:
-            filename = f"../../weights/model_{self.args.arch}_{self.args.mode}_{self.args.name}.pt"
+            filename = f"../../weights/model_{self.args.exp_name}.pt"
             print(f"saving weight to {filename} ...")
             torch.save(self.model.state_dict(), filename)
 
@@ -118,8 +153,18 @@ class TrainProcess():
         total_rec_loss = 0.0
         for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
-            mod1_rec = self.model(mod1_seq)
-            rec_loss = self.mse_loss(mod1_rec, mod1_seq)
+            if self.args.arch == 'rec':
+                mod1_rec = self.model(mod1_seq)            
+                rec_loss = self.mse_loss(mod1_rec, mod1_seq)
+            elif self.args.arch == 'peakrec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                rec_loss = self.mse_loss(generative_outputs["p"], mod1_seq)
+            elif self.args.arch == 'scvirec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                rec_loss = self.mse_loss(generative_outputs["px_rate"], mod1_seq)
+
             total_rec_loss += rec_loss.item()
         test_rmse = np.sqrt(total_rec_loss / len(self.test_loader))
         print(f'| Eval RMSE: {test_rmse:.4f}')
@@ -144,7 +189,16 @@ class TrainProcess():
 
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
-            mod1_rec = self.model(mod1_seq)
+            if self.args.arch == 'rec':
+                mod1_rec = self.model(mod1_seq)            
+            elif self.args.arch == 'peakrec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                mod1_rec = generative_outputs["p"]
+            elif self.args.arch == 'scvirec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                mod1_rec = generative_outputs["px_rate"]
 
             if use_numpy:
                 mod1_rec = mod1_rec.data.cpu().numpy()
@@ -168,7 +222,17 @@ class TrainProcess():
         for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             
-            mod1_rec = self.model(mod1_seq)
+            if self.args.arch == 'rec':
+                mod1_rec = self.model(mod1_seq)            
+            elif self.args.arch == 'peakrec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                mod1_rec = generative_outputs["p"]
+            elif self.args.arch == 'scvirec':
+                inference_outputs = self.model.inference(mod1_seq)
+                generative_outputs = self.model.generative(inference_outputs)
+                mod1_rec = generative_outputs["px_rate"]
+
             mod1_pred.append(mod1_rec)
 
         mod1_pred = torch.cat(mod1_pred).detach().cpu().numpy()
