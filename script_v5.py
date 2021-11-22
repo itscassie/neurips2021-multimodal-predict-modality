@@ -29,19 +29,21 @@ logging.basicConfig(level=logging.INFO)
 # Anything within this block will be removed by `viash` and will be
 # replaced with the parameters as specified in your config.vsh.yaml.
 meta = {'resources_dir': '.'}
+task = 'sample'
 mode = {
-    'gex2atac': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_',
-    'gex2adt': 'output/datasets/predict_modality/openproblems_bmmc_cite_phase1_rna/openproblems_bmmc_cite_phase1_rna.censor_dataset.output_',
-    'adt2gex': 'output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_',
-    'atac2gex': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_mod2/openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_',
+    'gex2atac': 'output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_',
+    'gex2adt': 'output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_',
+    'adt2gex': 'output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_',
+    'atac2gex': 'output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_',
     'sample': 'sample_data/openproblems_bmmc_multiome_starter/openproblems_bmmc_multiome_starter.'
 }
+
 par = {
-    'input_train_mod1': mode['sample'] + 'train_mod1.h5ad',
-    'input_train_mod2': mode['sample'] + 'train_mod2.h5ad',
-    'input_test_mod1': mode['sample'] + 'test_mod1.h5ad',
+    'input_train_mod1': mode[task] + 'train_mod1.h5ad',
+    'input_train_mod2': mode[task] + 'train_mod2.h5ad',
+    'input_test_mod1': mode[task] + 'test_mod1.h5ad',
     # added for test, remove later
-    # 'input_test_mod2': mode['sample'] + 'test_mod2.h5ad',
+    # 'input_test_mod2': mode[task] + 'test_mod2.h5ad',
     'distance_method': 'minkowski',
     'output': 'output.h5ad',
     'n_pcs': 50,
@@ -61,16 +63,19 @@ def pretrin_nn(
     hidden_dim,
     mod1_idx_path=None,
     tfidf=0,
-    idf_matrix=None):
+    idf_matrix=None,
+    gene_activity=False,
+    log=False):
 
     logging.info('Use pretrain model...')
     logging.info(f"Model Path: {model_pth}")
 
     # Dataset
-    testset = SeqDataset(test_mod1, mod1_idx_path=mod1_idx_path, tfidf=tfidf, mod1_idf=idf_matrix)
+    testset = SeqDataset(test_mod1, mod1_idx_path=mod1_idx_path, tfidf=tfidf, mod1_idf=idf_matrix, gene_activity=gene_activity)
     test_loader = DataLoader(testset, batch_size=256, shuffle=False)
     model_ae = AutoEncoder(input_dim=mod1_dim, out_dim=mod2_dim, feat_dim=feat_dim, hidden_dim=hidden_dim).float()
-    logging.info(model_ae)
+    if log:
+        logging.info(model_ae)
 
     # Load weight
     # model_ae.load_state_dict(torch.load(model_pth)) # gpu
@@ -101,7 +106,8 @@ def pretrin_batchgan(
     hidden_dim,
     mod1_idx_path=None,
     tfidf=0,
-    idf_matrix=None):
+    idf_matrix=None,
+    cls_num=10):
 
     logging.info('Use pretrain model...')
     logging.info(f"Model Path: {model_pth}")
@@ -110,8 +116,8 @@ def pretrin_batchgan(
     testset = SeqDataset(test_mod1)
     test_loader = DataLoader(testset, batch_size=256, shuffle=False)
     model_ae = BatchRemovalGAN(
-        input_dim=mod1_dim, out_dim=mod2_dim, feat_dim=feat_dim, hidden_dim=hidden_dim, cls_num=6).float()
-    logging.info(model_ae)
+        input_dim=mod1_dim, out_dim=mod2_dim, feat_dim=feat_dim, hidden_dim=hidden_dim, cls_num=cls_num).float()
+    # logging.info(model_ae)
 
     # Load weight
     # model_ae.load_state_dict(torch.load(model_pth)) # gpu
@@ -180,7 +186,7 @@ def pca(
     return np.array(y_pred)
 
 # Methods
-method_id = "mse_v3"
+method_id = "mse_v5"
 
 logging.info('Reading `h5ad` files...')
 input_train_mod1 = ad.read_h5ad(par['input_train_mod1'])
@@ -199,51 +205,62 @@ if input_train_mod2.var['feature_types'][0] == 'ATAC':
     LOAD_MODEL = MOD1_DIM == 13431 and MOD2_DIM == 10000
 
     if LOAD_MODEL:
-        # model (1) nn
-        model_pth = meta['resources_dir'] + '/model/weights/gex2atac/model_cycle_AtoB_gex2atac_e100.pt'
+        # model (1) pca
+        y_pred_pca = pca(input_train_mod1, input_test_mod1, n=120)
+
+        # model (2) nn
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2atac/model_AtoB_cycle_gex2atac_v2_Nov17-23-18.pt'
         y_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
         
-        # model (2) pca
-        y_pred_pca = pca(input_train_mod1, input_test_mod1, n=120)
-        
-        # model (3) concat
-        model_pth = meta['resources_dir'] + '/model/weights/gex2atac/model_best_AtoB_cycle_gex2atac_tfidfconcat_Nov03-21-30.pt'
-        mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2atac/mod1_idf.npy')
-        y_pred_concat = pretrin_nn(
-            par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
-            tfidf=2, idf_matrix=mod1_idf
-        )
-
         # ensemble
-        y_pred = (np.array(y_pred_nn) + np.array(y_pred_pca) + np.array(y_pred_concat)) / 3
+        y_pred = (np.array(y_pred_pca) + np.array(y_pred_nn)) / 2
 
 elif input_train_mod2.var['feature_types'][0] == 'ADT':
     logging.info("GEX to ADT")
     LOAD_MODEL = MOD1_DIM == 13953 and MOD2_DIM == 134
 
     if LOAD_MODEL:
-        # model (1) nn
-        model_pth = meta['resources_dir'] + '/model/weights/gex2adt/model_nn_gex2adt_l1reg_e100.pt'
+
+        # model (11) pca
+        y_pred_pca = pca(input_train_mod1, input_test_mod1, n=50)
+        
+        # model (12) nn
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2adt/model_nn_gex2adt_v2_Nov16-16-02.pt'
         y_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
         
-        # model (2) nn
-        model_pth = meta['resources_dir'] + '/model/weights/gex2adt/model_nn_gex2adt_l1reg2_e100.pt'
-        y_pred_nn2 = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
+        # model (17) bgan
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2adt/model_batchgan_gex2adt_v2_Nov16-15-47.pt'
+        y_pred_bgan = pretrin_batchgan(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM, cls_num=10)
 
-        # model (3) concat
-        model_pth = meta['resources_dir'] + '/model/weights/gex2adt/model_best_nn_gex2adt_tfidfconcat_Nov03-15-41.pt'
+        # model (19) concat
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2adt/model_nn_gex2adt_v2_tfidfconcat_Nov17-13-24.pt'
         mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf.npy')
         y_pred_concat = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
             tfidf=2, idf_matrix=mod1_idf
         )
 
-        # model (4) batchgan
-        model_pth = meta['resources_dir'] + '/model/weights/gex2adt/model_best_batchgan_gex2adt_Nov12-17-27.pt'
-        y_pred_bgan = pretrin_batchgan(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
+        # model (20) concat 2
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2adt/model_nn_gex2adt_v2_tfidfconcat_Nov18-14-40.pt'
+        mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf_v2.npy')
+        y_pred_concat2 = pretrin_nn(
+            par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
+            tfidf=2, idf_matrix=mod1_idf
+        )
+
+        # model (21) concat 3
+        model_pth = meta['resources_dir'] + '/model/weights_v5/gex2adt/model_nn_gex2adt_v2_tfidfconcat_Nov18-14-53.pt'
+        mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf_v2.npy')
+        y_pred_concat3 = pretrin_nn(
+            par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
+            tfidf=2, idf_matrix=mod1_idf
+        )
 
         # ensemble
-        y_pred = (np.array(y_pred_nn) + np.array(y_pred_nn2) + np.array(y_pred_concat) + np.array(y_pred_bgan)) / 4
+        y_pred = (
+            np.array(y_pred_pca) + np.array(y_pred_nn) + np.array(y_pred_bgan) + \
+            np.array(y_pred_concat) + np.array(y_pred_concat2) + np.array(y_pred_concat3)
+        ) / 6
 
 
 elif input_train_mod1.var['feature_types'][0] == 'ADT':
@@ -253,44 +270,41 @@ elif input_train_mod1.var['feature_types'][0] == 'ADT':
     if LOAD_MODEL:
         # model (1) pca
         y_pred_pca = pca(input_train_mod1, input_test_mod1, n=50)
-
-        # model (2) concat
-        model_pth = meta['resources_dir'] + '/model/weights/adt2gex/model_AtoB_cycle_adt2gex_concat_.pt'
-        mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/adt2gex/mod1_idf.npy')
-        y_pred_concat = pretrin_nn(
+        
+        # model (5) concat 3
+        model_pth = meta['resources_dir'] + '/model/weights_v5/adt2gex/model_best_AtoB_cycle_adt2gex_v2_tfidfconcat_Nov17-21-42.pt'
+        mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/adt2gex/mod1_idf_v2.npy')
+        y_pred_concat3 = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
             tfidf=2, idf_matrix=mod1_idf
         )
 
-        # model (3) concat
-        model_pth = meta['resources_dir'] + '/model/weights/adt2gex/model_best_AtoB_cycle_adt2gex_tfidfconcat_Nov03-14-47.pt'
-        y_pred_concat2 = pretrin_nn(
-            par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
-            tfidf=2, idf_matrix=mod1_idf
+        # model (6) nn
+        model_pth = meta['resources_dir'] + '/model/weights_v5/adt2gex/model_best_AtoB_cycle_adt2gex_v2_Nov17-18-23.pt'
+        y_pred_nn = pretrin_nn(
+            par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM
         )
 
         # ensemble
-        y_pred = (np.array(y_pred_pca) + np.array(y_pred_concat2) + np.array(y_pred_concat2)) / 3
+        y_pred = (np.array(y_pred_pca) + np.array(y_pred_concat3) + np.array(y_pred_nn)) / 3
 
 elif input_train_mod1.var['feature_types'][0] == 'ATAC':
     logging.info("ATAC to GEX")
     LOAD_MODEL = MOD1_DIM == 116490 and MOD2_DIM == 13431
 
     if LOAD_MODEL:
-        # model (1) nn cycle
-        model_pth = meta['resources_dir'] + '/model/weights/atac2gex/model_best_AtoB_cycle_atac2gex_Nov04-22-44.pt'
-        y_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
-        
-        # model (2) 2pct cycle
-        model_pth = meta['resources_dir'] + '/model/weights/atac2gex/model_AtoB_cycle_atac2gex_2pct_.pt'
-        mod1_2pct_path = meta['resources_dir'] + '/model/indexs/atac2gex/index_2pct.txt'
-        y_pred_2pct = pretrin_nn(
-            par['input_test_mod1'], model_pth, 29917, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
-            mod1_idx_path=mod1_2pct_path
-        )
+        # model (4) ga
+        model_pth = meta['resources_dir'] + '/model/weights_v5/atac2gex/model_AtoB_cycle_atac2gex_v2_ga_Nov19-00-04.pt'
+        y_pred_ga = pretrin_nn(
+            par['input_test_mod1'], model_pth, 19039, MOD2_DIM, FEAT_DIM, HIDDEN_DIM, gene_activity=True)
 
-        # model (3) tfidf
-        model_pth = meta['resources_dir'] + '/model/weights/atac2gex/model_best_AtoB_cycle_atac2gex_tfidf_Nov04-11-35.pt'
+        # model (5) ga 2
+        model_pth = meta['resources_dir'] + '/model/weights_v5/atac2gex/model_AtoB_cycle_atac2gex_v2_ga_Nov19-10-45.pt'
+        y_pred_ga2 = pretrin_nn(
+            par['input_test_mod1'], model_pth, 19039, MOD2_DIM, FEAT_DIM, HIDDEN_DIM, gene_activity=True)
+        
+        # model (8) tfidf
+        model_pth = meta['resources_dir'] + '/model/weights_v5/atac2gex/model_AtoB_cycle_atac2gex_v2_tfidf_Nov16-23-08.pt'
         mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/atac2gex/mod1_idf.npy')
         y_pred_tfidf = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
@@ -298,7 +312,7 @@ elif input_train_mod1.var['feature_types'][0] == 'ATAC':
         )
 
         # ensemble
-        y_pred = (np.array(y_pred_nn) + np.array(y_pred_2pct) + np.array(y_pred_tfidf)) / 3
+        y_pred = (np.array(y_pred_ga) + np.array(y_pred_ga2) + np.array(y_pred_tfidf)) / 3
 
 
 if not LOAD_MODEL:

@@ -40,7 +40,7 @@ output/
 
 # model
 model/logs/
-model/weights/
+model/weights*/
 model/outputs/
 model.pt
 .swp

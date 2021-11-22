@@ -1,5 +1,5 @@
 functionality:
-  name: mse_v3
+  name: mse_v5
   namespace: predict_modality
   
   # metadata for your method
@@ -9,7 +9,10 @@ functionality:
     - name: Yu-Hsiu Chen
       email: yhchen.cm06g@nctu.edu.tw
       roles: [ author, maintainer ]
-      # props: { github: johndoe, orcid: "0000-1111-2222-3333" }
+    - name: S wan
+      email: a5736735a.eecs99@g2.nctu.edu.tw
+    - name: TY Wu
+      email: wtywty@gmail.com
       
   # parameters
   arguments:
@@ -49,7 +52,7 @@ functionality:
   # files your script needs
   resources:
     - type: python_script
-      path: script_v3.py
+      path: script_v5.py
     # this include all files in "model/" directory 
     - path: model
   
@@ -58,7 +61,6 @@ functionality:
     - type: python_script
       path: test.py
     - path: sample_data
-    - path: output
 
 # target platforms
 platforms:
@@ -68,14 +70,11 @@ platforms:
   - type: docker
     # you need to specify a base image that contains at least bash and python
     image: "pytorch/pytorch:1.9.0-cuda11.1-cudnn8-runtime"
-    run_args: [ "--gpus all" ] 
+    # run_args: [ "--gpus all" ] 
     # You can specify additional dependencies with 'setup'. 
     # See https://viash.io/docs/reference_config/platform-docker/#setup-list
     # for more information on how to add more dependencies.
     setup:
-      # - type: apt
-      #   packages:
-      #     - bash
       - type: python
         packages:
           - scikit-learn
@@ -87,4 +86,7 @@ platforms:
   # which uses the docker container built above to also be able to 
   # run your method as part of a nextflow pipeline.
   - type: nextflow
-    labels: [ midmem, hightime, midcpu, gpu ]
+    labels: [ highmem, hightime, highcpu ]
+
+  # used for saturn cloud
+  - type: native

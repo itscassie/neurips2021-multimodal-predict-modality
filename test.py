@@ -12,15 +12,15 @@ method_id = meta['functionality_name']
 command = "./" + method_id
 
 # define some filenames
-testpar = {
-  'input_train_mod1': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod1.h5ad',
-  'input_train_mod2': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod2.h5ad',
-  'input_test_mod1': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod1.h5ad',
-  'input_test_mod2': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod2.h5ad',
-  'output': 'output.h5ad'
-}
-
-"""
+# """
+# testpar = {
+#   'input_train_mod1': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod1.h5ad',
+#   'input_train_mod2': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod2.h5ad',
+#   'input_test_mod1': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod1.h5ad',
+#   'input_test_mod2': 'output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod2.h5ad',
+#   'output': 'output.h5ad'
+# }
+# """
 testpar = {
   "input_train_mod1": "sample_data/openproblems_bmmc_multiome_starter/openproblems_bmmc_multiome_starter.train_mod1.h5ad",
   "input_train_mod2": "sample_data/openproblems_bmmc_multiome_starter/openproblems_bmmc_multiome_starter.train_mod2.h5ad",
@@ -28,7 +28,6 @@ testpar = {
   "input_test_mod2": "sample_data/openproblems_bmmc_multiome_starter/openproblems_bmmc_multiome_starter.test_mod2.h5ad",
   "output": "output.h5ad"
 }
-"""
 
 print("> Running method")
 out = subprocess.check_output([
