@@ -4,10 +4,10 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 class Encoder(nn.Module):
-    def __init__(self, input_dim, out_dim, hidden_dim):
+    def __init__(self, input_dim, out_dim, hidden_dim, dropout=0.2):
         super(Encoder, self).__init__()
         self.encoder = nn.Sequential(
-            nn.Dropout(0.2),
+            nn.Dropout(dropout),
             nn.Linear(input_dim, hidden_dim),
             nn.BatchNorm1d(hidden_dim),
             nn.LeakyReLU(0.2),
@@ -39,24 +39,6 @@ class Decoder(nn.Module):
         x_rec = self.decoder(x)
         return x_rec
 
-class ATACDecoder(nn.Module):
-    def __init__(self, input_dim, out_dim, hidden_dim):
-        super(ATACDecoder, self).__init__()
-        self.decoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim // 2),
-            nn.BatchNorm1d(hidden_dim // 2),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidden_dim // 2, hidden_dim),
-            nn.BatchNorm1d(hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.Linear(hidden_dim, out_dim),
-            nn.Sigmoid()
-        )
-
-    def forward(self, x):
-        x_rec = self.decoder(x)
-        return x_rec
-
 class Decoder_onelayer(nn.Module):
     def __init__(self, input_dim, out_dim):
         super(Decoder_onelayer, self).__init__()
@@ -67,6 +49,18 @@ class Decoder_onelayer(nn.Module):
     
     def forward(self, x):
         return self.decoder(x)       
+
+class AutoEncoder(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim, dropout=0.2):
+        super(AutoEncoder, self).__init__()
+        self.encoder = Encoder(input_dim, feat_dim, hidden_dim, dropout)
+        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
+
+    def forward(self, x):
+        feat = self.encoder(x)
+        x_rec = self.decoder(feat)
+        return x_rec
+
 
 class Distribution_Kernel(nn.Module):
     def __init__(self, input_dim):
@@ -93,29 +87,6 @@ class Distribution_Kernel(nn.Module):
         x = torch.squeeze(x, 1)
         return self.batchnorm(x)
 
-
-class AutoEncoder(nn.Module):
-    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
-        super(AutoEncoder, self).__init__()
-        self.encoder = Encoder(input_dim, feat_dim, hidden_dim)
-        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
-
-    def forward(self, x):
-        feat = self.encoder(x)
-        x_rec = self.decoder(feat)
-        return x_rec
-
-class ATACAutoEncoder(nn.Module):
-    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
-        super(ATACAutoEncoder, self).__init__()
-        self.encoder = Encoder(input_dim, feat_dim, hidden_dim)
-        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
-    
-    def forward(self, x):
-        feat = self.encoder(x)
-        x_rec = self.decoder(feat)
-        return x_rec
-
 class KernelAE(nn.Module):
     def __init__(self, input_dim, out_dim, feat_dim, hidden_dim):
         super(KernelAE, self).__init__()
@@ -137,16 +108,83 @@ class KernelAE(nn.Module):
         
         return reconstruct
 
-class UnbAutoEncoder(nn.Module):
-    def __init__(self, input_dim, out_dim, feat_dim, hid_dim_en, hid_dim_de):
-        super(UnbAutoEncoder, self).__init__()
-        self.encoder = Encoder(input_dim, feat_dim, hid_dim_en)
-        self.decoder = Decoder(feat_dim, out_dim, hid_dim_de)
+class Discriminator(nn.Module):
+    def __init__(self, input_dim, hidden_dim=1000):
+        super(Discriminator, self).__init__()
+        self.dis = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Linear(hidden_dim, 1),
+            nn.Dropout(0.5),
+            nn.Sigmoid(),
+        )
     
+    def forward(self, x):
+        x = x + torch.normal(mean=0, std=0.3, size=x.shape).cuda()
+        return self.dis(x).view(-1)
+
+class Pix2Pix(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim=1000):
+        super(Pix2Pix, self).__init__()
+
+        self.autoencoder = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim)
+        self.discriminator = Discriminator(out_dim, hidden_dim)
+
+    def forward(self, x, y_real):
+        y_fake = self.autoencoder(x)
+        fake_score = self.discriminator(y_fake)
+        real_score = self.discriminator(y_real)
+
+        return y_fake, fake_score, real_score
+
+class BatchClassifier(nn.Module):
+    def __init__(self, input_dim, cls_num=6, hidden_dim=50):
+        super(BatchClassifier, self).__init__()
+        self.classifier = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.BatchNorm1d(hidden_dim),
+            nn.LeakyReLU(0.2),
+            nn.Linear(hidden_dim, cls_num),
+            nn.LeakyReLU(0.2)
+        )
+
+    def forward(self, x):
+        x = x# + torch.normal(mean=0, std=0.3, size=x.shape).to(device=device)
+        return self.classifier(x)
+
+class BatchRemovalGAN(nn.Module):
+    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim, cls_num=10, dropout=0.2):
+        super(BatchRemovalGAN, self).__init__()
+        self.encoder = Encoder(input_dim, feat_dim, hidden_dim, dropout)
+        self.decoder = Decoder(feat_dim, out_dim, hidden_dim)
+        self.classifier = BatchClassifier(feat_dim, cls_num=cls_num)
+
     def forward(self, x):
         feat = self.encoder(x)
         x_rec = self.decoder(feat)
-        return x_rec
+        cls_prob = self.classifier(feat)
+        
+        return x_rec, cls_prob
+
+
+class ModelEnsemble(nn.Module):
+    def __init__(self, modelA, modelB, out_dim, device):
+        super(ModelEnsemble, self).__init__()
+        self.modelA = modelA
+        self.modelB = modelB
+        self.w1 = torch.rand(out_dim, requires_grad=True, device=device, dtype=torch.float)
+        self.w2 = torch.rand(1, requires_grad=True, device=device, dtype=torch.float)
+
+    def forward(self, x1, x2):
+        out1 = self.modelA(x1)
+        out2 = self.modelB(x2)
+        # out = out1 * self.w1 + out2 * (1 - self.w1)
+        out = out1 * self.w2 + out2 * (1 - self.w2)
+        return out
 
 class BN_common_encoder(nn.Module):
     def __init__(self, rna_input_size, atac_input_size, out_dim, hidden_dim=1000):
@@ -200,56 +238,6 @@ class BN_concat_decoder(nn.Module):
         atac_rec = self.atac_decoder(atac_embedding)
                         
         return rna_rec, atac_rec
-
-
-class Discriminator(nn.Module):
-    def __init__(self, input_dim, hidden_dim=1000):
-        super(Discriminator, self).__init__()
-        self.dis = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.BatchNorm1d(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.BatchNorm1d(hidden_dim),
-            nn.Linear(hidden_dim, 1),
-            nn.Dropout(0.5),
-            nn.Sigmoid(),
-        )
-    
-    def forward(self, x):
-        x = x + torch.normal(mean=0, std=0.3, size=x.shape).cuda()
-        return self.dis(x).view(-1)
-
-class Pix2Pix(nn.Module):
-    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim=1000):
-        super(Pix2Pix, self).__init__()
-
-        self.autoencoder = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim)
-        self.discriminator = Discriminator(out_dim, hidden_dim)
-
-    def forward(self, x, y_real):
-
-        y_fake = self.autoencoder(x)
-        fake_score = self.discriminator(y_fake)
-        real_score = self.discriminator(y_real)
-
-        return y_fake, fake_score, real_score
-
-class ModelEnsemble(nn.Module):
-    def __init__(self, modelA, modelB, out_dim, device):
-        super(ModelEnsemble, self).__init__()
-        self.modelA = modelA
-        self.modelB = modelB
-        self.w1 = torch.rand(out_dim, requires_grad=True, device=device, dtype=torch.float)
-        self.w2 = torch.rand(1, requires_grad=True, device=device, dtype=torch.float)
-
-    def forward(self, x1, x2):
-        out1 = self.modelA(x1)
-        out2 = self.modelB(x2)
-        # out = out1 * self.w1 + out2 * (1 - self.w1)
-        out = out1 * self.w2 + out2 * (1 - self.w2)
-        return out
 
 if __name__ == "__main__":
     import torch

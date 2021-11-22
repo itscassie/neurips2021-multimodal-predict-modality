@@ -1,14 +1,37 @@
 import logging
 import numpy as np
+import scanpy as sc
 import anndata as ad
+from scipy.sparse import csc_matrix
 from torch.utils.data.dataset import Dataset
 
-def data_reader(ad_path, count=False):
-    data = ad.read_h5ad(ad_path)
-    processed_data = data.X.toarray()
-    count_data = data.layers["counts"].toarray() if count else processed_data
+def data_reader(ad_path, batch_list=None, norm=False, ga=False):
+    data = sc.read_h5ad(ad_path)
+    
+    if isinstance(batch_list, list) and len(batch_list) > 0:
+        batch_data = data[data.obs["batch"]==''] # empty anndata
+        for b in batch_list:
+            batch_data = ad.concat(
+                (batch_data, data[data.obs["batch"]==b]), 
+                axis=0, join="outer", index_unique="-")
+        data = batch_data
+
+    if norm:
+        norm_data = data[data.obs["batch"]==''] # empty anndata
+        for b in sorted(set(data.obs["batch"])):
+            batch_data = data[data.obs["batch"]==b]
+            batch_data_norm = sc.pp.scale(batch_data, copy=True) # normalize X
+            norm_data = ad.concat((norm_data, batch_data_norm), axis=0, join="outer", index_unique="-")
+        data = norm_data
+        
+    
+    processed_data = data.obsm['gene_activity'].toarray() if ga else data.X.toarray()
+    count_data = data.layers["counts"].toarray()
+
     sample_num = processed_data.shape[0]
-    return processed_data, count_data, sample_num
+    
+    batch = np.array(data.obs['batch'])
+    return processed_data, count_data, sample_num, batch
 
 def read_from_txt(data_path, seq_type='mod1'):
     concrete_ind = []
@@ -22,23 +45,55 @@ def read_from_txt(data_path, seq_type='mod1'):
 
 class SeqDataset(Dataset):
     # todo: clean mode 2 pth
-    def __init__(self, mod1_path, mod2_path=None, mod1_idx_path=None, mod2_idx_path=None, tfidf=0, mod1_idf=None):
+    def __init__(
+        self, 
+        mod1_path, 
+        mod2_path=None, 
+        mod1_idx_path=None, 
+        mod2_idx_path=None, 
+        tfidf=0, 
+        mod1_idf=None, 
+        batch_list=None, 
+        norm=False,
+        gene_activity=False,
+        batch_removal=False, 
+        batch_mean=None, 
+        batch_std=None
+
+    ):
         self.mod2_path = mod2_path
         self.tfidf = tfidf
+        self.batch_removal = batch_removal
+        self.batch_mean = batch_mean
+        self.batch_std = batch_std
 
         (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
         (self.mod2_index, _) = read_from_txt(mod2_idx_path, 'mod2') if mod2_idx_path != None else (None, None)
 
         if tfidf == 0:
-            self.mod1_data, _, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.mod1_data, _, self.mod1_sample_num, self.batch = data_reader(
+                mod1_path, batch_list, norm, gene_activity)
+        
         elif tfidf in [1, 2]:
-            self.mod1_raw, self.mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(
+                mod1_path, batch_list)
+            # selection
+            self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
+            self.mod1_idf = self.mod1_idf.astype(np.float64)
+        
+        elif tfidf == 3:
+
+            # concat tfidf, raw, ga feature
+            # tfidf & raw support 2pct, 5pct selection; the dimension of ga remains unchanged
+            
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
+            self.mod1_ga, _, _, _ = data_reader(mod1_path, batch_list, ga=True)
             # selection
             self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
             self.mod1_idf = self.mod1_idf.astype(np.float64)
 
         if mod2_path != None:
-            self.mod2_data, _, self.mod2_sample_num = data_reader(mod2_path, count=False)
+            self.mod2_data, _, self.mod2_sample_num, self.batch = data_reader(mod2_path, batch_list)
             assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
         else:
             self.mod2_data = -1
@@ -47,9 +102,12 @@ class SeqDataset(Dataset):
     def __getitem__(self, index):
         # mod1, mod2 sample
         mod1_sample = self.mod1_data[index].reshape(-1).astype(np.float64)
-        
         if self.mod2_path != None:
             mod2_sample = self.mod2_data[index].reshape(-1).astype(np.float64)
+            if self.batch_removal:
+                bmean_sample = self.batch_mean[self.batch[index]].reshape(-1).astype(np.float64)
+                bstd_sample = self.batch_std[self.batch[index]].reshape(-1).astype(np.float64)
+                mod2_sample = (mod2_sample - np.mean(bmean_sample)) / np.mean(bstd_sample)
         else:
             mod2_sample = -1
         
@@ -58,7 +116,7 @@ class SeqDataset(Dataset):
         mod2_sample = mod2_sample[self.mod2_index] if self.mod2_index != None else mod2_sample
         
         # tfidf
-        if self.tfidf in [1, 2]:
+        if self.tfidf in [1, 2, 3]:
             mod1_tf = mod1_sample / np.sum(mod1_sample)
             mod1_tfidf = (mod1_tf * self.mod1_idf).reshape(-1).astype(np.float64)
             
@@ -70,7 +128,148 @@ class SeqDataset(Dataset):
                 mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
                 return  np.concatenate((mod1_tfidf, mod1_raw), axis=0), mod2_sample
 
+            elif self.tfidf == 3:
+                mod1_raw = self.mod1_raw[index].reshape(-1).astype(np.float64)
+                mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
+                mod1_ga = self.mod1_ga[index].reshape(-1).astype(np.float64)
+                return  np.concatenate((mod1_tfidf, mod1_ga), axis=0), mod2_sample
+
         return mod1_sample, mod2_sample
+
+    def __len__(self):
+        return self.mod1_sample_num
+
+CLS2LBL = {
+    's1d1': 0, 's1d2': 1, 's1d3': 2, 
+    's2d1': 3, 's2d4': 4, 's2d5': 5, 
+    's3d3': 6, 's3d6': 7, 's3d7': 8, 's3d10': 9 
+}
+
+class BatchSeqDataset(Dataset):
+    # todo: clean mode 2 pth
+    def __init__(
+        self, 
+        mod1_path, 
+        mod2_path=None, 
+        mod1_idx_path=None, 
+        tfidf=0, 
+        mod1_idf=None, 
+        batch_list=None
+
+    ):
+        self.mod2_path = mod2_path
+        self.tfidf = tfidf
+
+        (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
+
+        if tfidf == 0:
+            self.mod1_data, _, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
+        
+        elif tfidf in [1, 2]:
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
+            # selection
+            self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
+            self.mod1_idf = self.mod1_idf.astype(np.float64)
+
+        if mod2_path != None:
+            self.mod2_data, _, self.mod2_sample_num, self.batch = data_reader(mod2_path, batch_list)
+            assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
+        else:
+            self.mod2_data = -1
+        
+    def __getitem__(self, index):
+        # mod1, mod2, batch sample
+        mod1_sample = self.mod1_data[index].reshape(-1).astype(np.float64)
+        if self.batch[index] not in CLS2LBL:
+            batch_sample = np.array(0).astype(np.int_)
+        else:
+            batch_sample = np.array(CLS2LBL[self.batch[index]]).astype(np.int_)
+
+        if self.mod2_path != None:
+            mod2_sample = self.mod2_data[index].reshape(-1).astype(np.float64)
+        else:
+            mod2_sample = -1
+        
+        # selection
+        mod1_sample = mod1_sample[self.mod1_index] if self.mod1_index != None else mod1_sample
+        
+        # tfidf
+        if self.tfidf in [1, 2]:
+            mod1_tf = mod1_sample / np.sum(mod1_sample)
+            mod1_tfidf = (mod1_tf * self.mod1_idf).reshape(-1).astype(np.float64)
+            
+            if self.tfidf == 1:
+                return mod1_tfidf, mod2_sample, batch_sample 
+            
+            elif self.tfidf == 2:
+                mod1_raw = self.mod1_raw[index].reshape(-1).astype(np.float64)
+                mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
+                return  np.concatenate((mod1_tfidf, mod1_raw), axis=0), mod2_sample, batch_sample 
+
+        return mod1_sample, mod2_sample, batch_sample 
+
+    def __len__(self):
+        return self.mod1_sample_num
+
+class RawSeqDataset(Dataset):
+    def __init__(
+        self, 
+        mod1_path, 
+        mod2_path=None, 
+        mod1_idx_path=None, 
+        tfidf=0, 
+        mod1_idf=None,
+    ):
+        self.mod2_path = mod2_path
+        self.tfidf = tfidf
+
+        (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
+        
+        if tfidf == 0:
+            self.mod1_data, self.mod1_count, self.mod1_sample_num, _ = data_reader(mod1_path)
+        elif tfidf in [1, 2]:
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, _ = data_reader(mod1_path)
+            self.mod1_count = self.mod1_data
+            # idf index selection
+            self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
+            self.mod1_idf = self.mod1_idf.astype(np.float64)
+
+        if mod2_path != None:
+            self.mod2_data, self.mod2_count, self.mod2_sample_num, _ = data_reader(mod2_path)
+            assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
+        else:
+            self.mod2_data = -1
+        
+
+    def __getitem__(self, index):
+        # mod1, mod2 sample
+        mod1_sample = self.mod1_data[index].reshape(-1).astype(np.float64)
+        mod1_count_sample = self.mod1_count[index].reshape(-1).astype(np.float64)
+        
+        if self.mod2_path != None:
+            mod2_sample = self.mod2_data[index].reshape(-1).astype(np.float64)
+            mod2_count_sample = self.mod2_count[index].reshape(-1).astype(np.float64)
+        else:
+            mod2_sample, mod2_count_sample = -1, -1
+        
+        # selection
+        mod1_sample = mod1_sample[self.mod1_index] if self.mod1_index != None else mod1_sample
+        mod1_count_sample = mod1_count_sample[self.mod1_index] if self.mod1_index != None else mod1_count_sample
+        
+        # tfidf
+        if self.tfidf in [1, 2]:
+            mod1_tf = mod1_sample / np.sum(mod1_sample)
+            mod1_tfidf = (mod1_tf * self.mod1_idf).reshape(-1).astype(np.float64)
+            
+            if self.tfidf == 1:
+                return mod1_tfidf, mod2_sample, mod1_count_sample, mod2_count_sample
+            
+            elif self.tfidf == 2:
+                mod1_raw = self.mod1_raw[index].reshape(-1).astype(np.float64)
+                mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
+                return  np.concatenate((mod1_tfidf, mod1_raw), axis=0), mod2_sample, mod1_count_sample, mod2_count_sample
+
+        return mod1_sample, mod2_sample, mod1_count_sample, mod2_count_sample
 
     def __len__(self):
         return self.mod1_sample_num
@@ -99,24 +298,24 @@ class ChainSeqDataset(Dataset):
 
 
         if A_tfidf == 0:
-            self.A_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.A_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path)
         elif A_tfidf in [1, 2]:
-            self.A_mod1_raw, self.A_mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.A_mod1_raw, self.A_mod1_data, self.mod1_sample_num = data_reader(mod1_path)
             # selection
             self.A_mod1_idf = mod1_idf[:, self.mod1_index] if self.A_selection else mod1_idf
             self.A_mod1_idf = self.A_mod1_idf.astype(np.float64)
 
         if B_tfidf == 0:
-            self.B_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.B_mod1_data, _, self.mod1_sample_num = data_reader(mod1_path)
         elif B_tfidf in [1, 2]:
-            self.B_mod1_raw, self.B_mod1_data, self.mod1_sample_num = data_reader(mod1_path, count=True)
+            self.B_mod1_raw, self.B_mod1_data, self.mod1_sample_num = data_reader(mod1_path)
             # selection
             self.B_mod1_idf = mod1_idf[:, self.mod1_index] if self.B_selection else mod1_idf
             self.B_mod1_idf = self.B_mod1_idf.astype(np.float64)
 
         
         if mod2_path != None:
-            self.mod2_data, _, self.mod2_sample_num = data_reader(mod2_path, count=False)
+            self.mod2_data, _, self.mod2_sample_num = data_reader(mod2_path)
             assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
         else:
             self.mod2_data = -1
@@ -185,12 +384,22 @@ def get_data_dim(data_path, args):
     test_mod2 = ad.read_h5ad(test_mod2_pth)
 
     # deal with mode 1 dim of selection / tfidf
-    mod1_dim = train_mod1.X.shape[1]
+    # (1) selection / gene_activity mode
     if args.selection:
         _, mod1_select_dim = read_from_txt(args.mod1_idx_path)
         mod1_dim = mod1_select_dim
-    mod1_dim = mod1_dim * 2 if args.tfidf == 2 else mod1_dim
+    elif args.gene_activity:
+        mod1_dim = train_mod1.obsm['gene_activity'].shape[1]
+    else:
+        mod1_dim = train_mod1.X.shape[1]
 
+    # (2) tfidf = 2 / 3
+    if args.tfidf == 2:
+        mod1_dim = mod1_dim * 2
+    elif args.tfidf == 3:
+        mod1_dim = mod1_dim * 1 + train_mod1.obsm['gene_activity'].shape[1]
+
+    # mod2 dim
     mod2_dim = train_mod2.X.shape[1]
 
     logging.info(f"Dataset: ")

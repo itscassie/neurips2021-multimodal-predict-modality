@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
 from utils.metric import rmse
-from utils.dataloader import SeqDataset
+from utils.dataloader import RawSeqDataset
 from utils.loss import L1regularization
 from opts import model_opts, DATASET
 from modules.model_ae import AutoEncoder
@@ -25,29 +25,21 @@ class TrainProcess():
         self.device = torch.device(f'cuda:{args.gpu_ids[0]}') if args.gpu_ids else torch.device('cpu')
 
         mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
-        self.trainset = SeqDataset(
+        self.trainset = RawSeqDataset(
             DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
-            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
-            batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
+            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf
         )
-        self.testset = SeqDataset(
+        self.testset = RawSeqDataset(
             DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
-            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
-            batch_list=args.test_batch, norm=args.norm, gene_activity=args.gene_activity
+            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf
         )
-
-        logging.info(f"TRAIN_NUM: {len(self.trainset):5d}")
-        logging.info(f"TEST_NUM : {len(self.testset):5d}")
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
         self.model = AutoEncoder(
             input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-            feat_dim=args.emb_dim, hidden_dim=args.hid_dim, dropout=args.dropout
-        ).to(self.device).float()
-
-        
+            feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()       
         logging.info(self.model)
 
         self.mse_loss = nn.MSELoss()
@@ -58,17 +50,6 @@ class TrainProcess():
         self.optimizer = optim.SGD(
             self.model.parameters(),
             lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
-
-        # original learning rate adjustment method
-        self.scheduler = optim.lr_scheduler.StepLR(
-            self.optimizer, step_size=self.args.lr_decay_epoch, gamma=0.5, verbose=True)
-
-        # self.scheduler = optim.lr_scheduler.MultiStepLR(
-        #     self.optimizer, milestones=[40,80,120,160], gamma=0.5, verbose=True)
-        # self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.99, verbose=True)
-        
-        # self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        #     self.optimizer, T_max=30, eta_min=args.lr*5e-2, last_epoch=-1, verbose=True)
 
     def adjust_learning_rate(self, optimizer, epoch):
         lr = self.args.lr * (0.5 ** ((epoch - 0) // self.args.lr_decay_epoch))
@@ -89,24 +70,24 @@ class TrainProcess():
 
     def train_epoch(self, epoch):
         self.model.train()
-        # self.adjust_learning_rate(self.optimizer, epoch)
+        self.adjust_learning_rate(self.optimizer, epoch)
 
         total_loss = 0.0
         total_rec_loss = 0.0
         print(f'Epoch {epoch+1:2d} / {self.args.epoch}')
 
-        for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.train_loader):
+        for batch_idx, (_, mod2_seq, mod1_seq, _) in enumerate(self.train_loader):
 
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             
             mod2_rec = self.model(mod1_seq)
 
-            rec_loss = self.mse_loss(mod2_rec, mod2_seq)
-            l1_loss = self.l1_loss(mod2_rec, mod2_seq)
+            rec_loss = self.mse_loss(mod2_rec, mod2_seq) * 1
+            l1_loss = self.l1_loss(mod2_rec, mod2_seq) * 0
             l1reg_loss = self.l1reg_loss(self.model) * self.args.reg_loss_weight
 
-            loss = rec_loss + 0. * l1_loss + l1reg_loss
+            loss = rec_loss + l1_loss + l1reg_loss
 
             self.optimizer.zero_grad()
             loss.backward()
@@ -121,7 +102,6 @@ class TrainProcess():
                 f'Rec L1: {l1_loss.item():.4f} | ' + \
                 f'L1 Reg: {l1reg_loss.item():.4f}')
         
-        self.scheduler.step()
         
         train_rmse = np.sqrt(total_rec_loss / len(self.train_loader))
         test_rmse = self.eval_epoch(epoch)
@@ -151,7 +131,7 @@ class TrainProcess():
         self.model.eval()
 
         total_rec_loss = 0.0
-        for batch_idx, (mod1_seq, mod2_seq) in enumerate(self.test_loader):
+        for batch_idx, (_, mod2_seq, mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             mod2_seq = mod2_seq.to(self.device).float()
             
@@ -180,8 +160,9 @@ class TrainProcess():
         use_numpy = True if self.args.mode == 'atac2gex' else False
         mod2_pred = np.zeros((1, self.args.mod2_dim)) if use_numpy else []
 
-        for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
+        for batch_idx, (_, mod2_seq, mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()
+            
             mod2_rec = self.model(mod1_seq)
             
             if use_numpy:
@@ -195,31 +176,30 @@ class TrainProcess():
         else:
             mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()
 
+        mod2_pred = self.clr(mod2_pred)
         mod2_pred = csc_matrix(mod2_pred)
 
-        mod2_data = ad.read_h5ad(DATASET[self.args.mode]['train_mod2'])
-        if len(self.args.train_batch) != 0:
-            batch_data = mod2_data[mod2_data.obs["batch"]=='s0'] # empty anndata
-            for b in self.args.train_batch:
-                batch_data = ad.concat(
-                    (batch_data, mod2_data[mod2_data.obs["batch"]==b]), 
-                    axis=0, join="outer", index_unique="-")
-            mod2_data = batch_data
-        mod2_sol = mod2_data.X
+        mod2_sol = ad.read_h5ad(DATASET[self.args.mode]['train_mod2']).X
         rmse_pred = rmse(mod2_sol, mod2_pred)
         logging.info(f"Train RMSE: {rmse_pred:5f}")
 
         # test set rmse
         mod2_pred = []
-        for batch_idx, (mod1_seq, _) in enumerate(self.test_loader):
+        for batch_idx, (_, mod2_seq, mod1_seq, _) in enumerate(self.test_loader):
             mod1_seq = mod1_seq.to(self.device).float()
             
             mod2_rec = self.model(mod1_seq)
             mod2_pred.append(mod2_rec)
 
         mod2_pred = torch.cat(mod2_pred).detach().cpu().numpy()
+        
+        mod2_pred = self.clr(mod2_pred)
         mod2_pred = csc_matrix(mod2_pred)
 
         mod2_sol = ad.read_h5ad(DATASET[self.args.mode]['test_mod2']).X
         rmse_pred = rmse(mod2_sol, mod2_pred)
         logging.info(f"Eval RMSE: {rmse_pred:5f}")
+
+    def clr(self, x):
+        return np.log1p(x / np.exp(np.mean(np.log1p(x), axis=1, keepdims=True)))
+

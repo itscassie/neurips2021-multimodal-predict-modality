@@ -26,36 +26,54 @@ class TrainProcess():
         mod1_idf = np.load(args.idf_path) if args.tfidf != 0 else None
         self.trainset = SeqDataset(
             DATASET[args.mode]['train_mod1'], DATASET[args.mode]['train_mod2'],
-            mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
-            tfidf=args.tfidf, mod1_idf=mod1_idf
+            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
+            batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
         )
         self.testset = SeqDataset(
             DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
-            mod1_idx_path=args.mod1_idx_path, mod2_idx_path=args.mod2_idx_path,
-            tfidf=args.tfidf, mod1_idf=mod1_idf
+            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
+            batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
         )
         
+        logging.info(f"TRAIN_NUM: {len(self.trainset):5d}")
+        logging.info(f"TEST_NUM : {len(self.testset):5d}")
+
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
 
         self.model_AtoB = AutoEncoder(
             input_dim=args.mod1_dim, out_dim=args.mod2_dim, 
-            feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+            feat_dim=args.emb_dim, hidden_dim=args.hid_dim, dropout=args.dropout
+        ).to(self.device).float()
+
         self.model_BtoA = AutoEncoder(
             input_dim=args.mod2_dim, out_dim=args.mod1_dim, 
-            feat_dim=args.emb_dim, hidden_dim=args.hid_dim).to(self.device).float()
+            feat_dim=args.emb_dim, hidden_dim=args.hid_dim, dropout=args.dropout
+        ).to(self.device).float()
+
         logging.info(self.model_AtoB)
         logging.info(self.model_BtoA)
 
         self.mse_loss = nn.MSELoss()
         self.adv_loss = nn.BCELoss()
         self.l1reg_loss = L1regularization(weight_decay=0.1)
-        self.eval_best = 100
+        self.eval_best = float("inf")
 
         self.optimizer = optim.SGD([
             {'params': self.model_AtoB.parameters()}, 
             {'params': self.model_BtoA.parameters()}],
             lr=args.lr, momentum=args.momentum, weight_decay=5e-4)
+
+        # self.scheduler = optim.lr_scheduler.StepLR(
+        #     self.optimizer, step_size=self.args.lr_decay_epoch, gamma=0.5, verbose=True)
+
+        step_size = self.args.lr_decay_epoch
+        self.scheduler = optim.lr_scheduler.MultiStepLR(
+            self.optimizer, milestones=[step_size, step_size*2, step_size*3], gamma=0.5, verbose=True)
+        
+        # self.scheduler = optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.99, verbose=True)
+        # self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+        #     self.optimizer, T_max=30, eta_min=args.lr*5e-2, last_epoch=-1, verbose=True)
 
     def adjust_learning_rate(self, optimizer, epoch):
         lr = self.args.lr * (0.5 ** ((epoch - 0) // self.args.lr_decay_epoch))
@@ -78,7 +96,7 @@ class TrainProcess():
     def train_epoch(self, epoch):
         self.model_AtoB.train()
         self.model_BtoA.train()
-        self.adjust_learning_rate(self.optimizer, epoch)
+        # self.adjust_learning_rate(self.optimizer, epoch)
 
         total_rec_loss = 0.0
         total_cycle_loss = 0.0
@@ -142,6 +160,7 @@ class TrainProcess():
                 f'BAB: {BAB_loss.item() :.4f} | ' + \
                 f'L1: {l1reg_loss.item():.4f}'
                 )
+        self.scheduler.step()
 
         train_rmse = np.sqrt(total_rec_loss_B / len(self.train_loader))
         test_rmse = self.eval_epoch(epoch)
@@ -234,7 +253,15 @@ class TrainProcess():
             
         mod2_pred = csc_matrix(mod2_pred)
 
-        mod2_sol = ad.read_h5ad(DATASET[self.args.mode]['train_mod2']).X
+        mod2_data = ad.read_h5ad(DATASET[self.args.mode]['train_mod2'])
+        if len(self.args.train_batch) != 0:
+            batch_data = mod2_data[mod2_data.obs["batch"]=='s0'] # empty anndata
+            for b in self.args.train_batch:
+                batch_data = ad.concat(
+                    (batch_data, mod2_data[mod2_data.obs["batch"]==b]), 
+                    axis=0, join="outer", index_unique="-")
+            mod2_data = batch_data
+        mod2_sol = mod2_data.X
         rmse_pred = rmse(mod2_sol, mod2_pred)
         logging.info(f"Train RMSE: {rmse_pred:5f}")
 

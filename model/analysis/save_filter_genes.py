@@ -32,14 +32,52 @@ GEX2ATAC = [
 '../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod2.h5ad' 
 ]
 
+ADT2GEX_v2 = [
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_train_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_train_mod2.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_test_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_test_mod2.h5ad'
+]
+
+GEX2ADT_v2 = [
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_train_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_train_mod2.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_test_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_test_mod2.h5ad'
+]
+
+ATAC2GEX_v2 = [
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_train_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_train_mod2.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_test_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_test_mod2.h5ad',
+]
+
+GEX2ATAC_v2 = [
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_train_mod1.h5ad',
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_train_mod2.h5ad',
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_test_mod1.h5ad', 
+'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_test_mod2.h5ad' 
+]
+
 # config
-DATAPTH = [ATAC2GEX] # choices: ATAC2GEX, ADT2GEX, GEX2ADT, GEX2ATAC
+DATAPTH = [ATAC2GEX_v2] # choices: ATAC2GEX, ADT2GEX, GEX2ADT, GEX2ATAC
 pct = 2 # percentage of filter gene
 """
 ATAC2GEX 
-=> mod 1 (17394, 116490)
-    {pct: 5, min_cells: 869, feature_num: 13680}
-    {pct: 2, min_cells: 347, feature_num: 29917}
+mod 1 (17394, 116490)
+{pct: 5, min_cells: 869, feature_num: 13680}
+{pct: 2, min_cells: 347, feature_num: 29917}
+
+GEX2ADT
+mod 1 (30077, 13953)
+{pct: 5, min_cells: 1503, feature_num: 7470}
+{pct: 2, min_cells: 601, feature_num: 10370}
+
+ATAC2GEX_v2
+mod 1 (31329, 116490)
+{pct: 2, min_cells: 626, feature_num: 33354}
+
 """
 for (i, mode) in enumerate(DATAPTH):
     print(f"DIRECTION [{i + 1} / {len(DATAPTH)}]")
@@ -64,6 +102,7 @@ for (i, mode) in enumerate(DATAPTH):
     print(X_raw.shape)
     
     sc.pp.filter_genes(X_raw, min_cells=min_cells)
+
     train_5pct = X_raw[:train_mod1.X.shape[0], :]
     train_5pct = ad.AnnData(
         X=train_5pct.X,
@@ -89,9 +128,9 @@ for (i, mode) in enumerate(DATAPTH):
 
     file_path = f"../../../indexs/{str(train_mod1.var['feature_types'][0]).lower()}2{str(train_mod2.var['feature_types'][0]).lower()}"
     os.makedirs(file_path, exist_ok=True)
-    index_file = open(f'{file_path}/index_{pct}pct.txt', 'w')
+    index_file = open(f'{file_path}/index_{pct}pct_v2.txt', 'w')
     index_file.write(f'index num: {len(mod1_5pct_idx)}\n')
     for ind in mod1_5pct_idx:
         index_file.write(str(ind)+'\n')
 
-    print(f'finish saving {file_path}/index_{pct}pct.txt')
+    print(f'finish saving {file_path}/index_{pct}pct_v2.txt')
