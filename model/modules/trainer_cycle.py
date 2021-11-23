@@ -3,11 +3,12 @@ import logging
 import numpy as np
 import anndata as ad
 from scipy.sparse import csc_matrix
+from tensorboardX import SummaryWriter
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.data.dataset import Dataset
 
 from opts import model_opts, DATASET
@@ -15,7 +16,6 @@ from utils.dataloader import SeqDataset
 from utils.loss import L1regularization
 from utils.metric import rmse
 from modules.model_ae import AutoEncoder
-from tensorboardX import SummaryWriter
 
 class TrainProcess():
     def __init__(self, args):
@@ -29,14 +29,23 @@ class TrainProcess():
             mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
             batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
         )
-        self.testset = SeqDataset(
-            DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
-            mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
-            batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
-        )
-        
         logging.info(f"TRAIN_NUM: {len(self.trainset):5d}")
-        logging.info(f"TEST_NUM : {len(self.testset):5d}")
+        
+        if args.mode not in ['gex2atac_p2', 'gex2adt_p2', 'adt2gex_p2', 'atac2gex_p2']:
+            self.testset = SeqDataset(
+                DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
+                mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
+                batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
+            )
+            logging.info(f"TEST_NUM : {len(self.testset):5d}")
+        else:
+            train_size = int(0.9 * len(self.trainset))
+            test_size = len(self.trainset) - train_size
+            logging.info(f"(SPLITED) TRAIN_SIZE: {train_size:5d}, TEST_SIZE: {test_size:5d}")
+            self.trainset, self.testset = random_split(
+                self.trainset, [train_size, test_size], 
+                generator=torch.Generator().manual_seed(args.seed)
+            )
 
         self.train_loader = DataLoader(self.trainset, batch_size=args.batch_size, shuffle=True)
         self.test_loader = DataLoader(self.testset, batch_size=args.batch_size, shuffle=False)
@@ -191,7 +200,7 @@ class TrainProcess():
             print(f"saving AtoB weight to {filenameAtoB} ...")
             torch.save(self.model_AtoB.state_dict(), filenameAtoB)
 
-            if save_best and epoch > 50:
+            if save_best and epoch > self.args.save_best_from:
                 filename = f"../../weights/model_best_{self.args.exp_name}.pt"
                 print(f"saving best weight to {filename} ...")
                 torch.save({
@@ -233,8 +242,12 @@ class TrainProcess():
         logging.info(f"Mode: {self.args.mode}")
         
         # train set rmse
-        use_numpy = True if self.args.mode == 'atac2gex' else False
-        mod2_pred = np.zeros((1, self.args.mod2_dim)) if use_numpy else []
+        if self.args.mode in ['gex2atac', 'gex2adt', 'adt2gex']:
+            use_numpy = False
+            mod2_pred = []
+        else:
+            use_numpy = True
+            mod2_pred = np.zeros((1, self.args.mod2_dim))
 
         for batch_idx, (mod1_seq, _) in enumerate(self.train_loader):
             mod1_seq = mod1_seq.to(self.device).float()

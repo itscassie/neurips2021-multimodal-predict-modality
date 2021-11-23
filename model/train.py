@@ -92,4 +92,6 @@ elif args.arch == 'batchgan':
     trainer = TrainProcess_BATCHGAN(args)
 
 trainer.run()
-trainer.eval()
+
+if args.mode not in ['gex2atac_p2', 'gex2adt_p2', 'adt2gex_p2', 'atac2gex_p2']:
+    trainer.eval()

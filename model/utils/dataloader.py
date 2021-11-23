@@ -15,23 +15,23 @@ def data_reader(ad_path, batch_list=None, norm=False, ga=False):
                 (batch_data, data[data.obs["batch"]==b]), 
                 axis=0, join="outer", index_unique="-")
         data = batch_data
-
-    if norm:
-        norm_data = data[data.obs["batch"]==''] # empty anndata
-        for b in sorted(set(data.obs["batch"])):
-            batch_data = data[data.obs["batch"]==b]
-            batch_data_norm = sc.pp.scale(batch_data, copy=True) # normalize X
-            norm_data = ad.concat((norm_data, batch_data_norm), axis=0, join="outer", index_unique="-")
-        data = norm_data
-        
-    
     processed_data = data.obsm['gene_activity'].toarray() if ga else data.X.toarray()
     count_data = data.layers["counts"].toarray()
 
     sample_num = processed_data.shape[0]
-    
     batch = np.array(data.obs['batch'])
-    return processed_data, count_data, sample_num, batch
+
+    batch_stats = {}
+    if norm:
+        # feature-wise norm   
+        for b in sorted(set(data.obs["batch"])):
+            batch_data = data[data.obs["batch"]==b]
+            batch_mean = np.mean(batch_data.X.toarray(), axis=0)
+            batch_std = np.std(batch_data.X.toarray(), axis=0)
+            batch_stats[f"{b}_m"] = batch_mean
+            batch_stats[f"{b}_s"] = batch_std
+    
+    return processed_data, count_data, sample_num, batch, batch_stats
 
 def read_from_txt(data_path, seq_type='mod1'):
     concrete_ind = []
@@ -66,34 +66,35 @@ class SeqDataset(Dataset):
         self.batch_removal = batch_removal
         self.batch_mean = batch_mean
         self.batch_std = batch_std
+        self.norm = norm
 
         (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
         (self.mod2_index, _) = read_from_txt(mod2_idx_path, 'mod2') if mod2_idx_path != None else (None, None)
 
         if tfidf == 0:
-            self.mod1_data, _, self.mod1_sample_num, self.batch = data_reader(
+            self.mod1_data, _, self.mod1_sample_num, self.batch, self.batch_stats = data_reader(
                 mod1_path, batch_list, norm, gene_activity)
         
         elif tfidf in [1, 2]:
-            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(
-                mod1_path, batch_list)
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch, self.batch_stats = data_reader(
+                mod1_path, batch_list, norm)
             # selection
             self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
             self.mod1_idf = self.mod1_idf.astype(np.float64)
         
         elif tfidf == 3:
-
-            # concat tfidf, raw, ga feature
+            # concat tfidf, ga feature
             # tfidf & raw support 2pct, 5pct selection; the dimension of ga remains unchanged
-            
-            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
-            self.mod1_ga, _, _, _ = data_reader(mod1_path, batch_list, ga=True)
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch, _ = data_reader(
+                mod1_path, batch_list)
+            self.mod1_ga, _, _, _, _ = data_reader(mod1_path, batch_list, ga=True)
+
             # selection
             self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
             self.mod1_idf = self.mod1_idf.astype(np.float64)
 
         if mod2_path != None:
-            self.mod2_data, _, self.mod2_sample_num, self.batch = data_reader(mod2_path, batch_list)
+            self.mod2_data, _, self.mod2_sample_num, _, _ = data_reader(mod2_path, batch_list)
             assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
         else:
             self.mod2_data = -1
@@ -111,6 +112,11 @@ class SeqDataset(Dataset):
         else:
             mod2_sample = -1
         
+        if self.norm:
+            bmean = self.batch_stats[f"{self.batch[index]}_m"].reshape(-1).astype(np.float64)
+            bstd = self.batch_stats[f"{self.batch[index]}_s"].reshape(-1).astype(np.float64)
+            mod1_sample = (mod1_sample - np.mean(bmean)) / np.mean(bstd) if self.tfidf == 0 else mod1_sample       
+
         # selection
         mod1_sample = mod1_sample[self.mod1_index] if self.mod1_index != None else mod1_sample
         mod2_sample = mod2_sample[self.mod2_index] if self.mod2_index != None else mod2_sample
@@ -125,12 +131,11 @@ class SeqDataset(Dataset):
             
             elif self.tfidf == 2:
                 mod1_raw = self.mod1_raw[index].reshape(-1).astype(np.float64)
+                mod1_raw = (mod1_raw - np.mean(bmean)) / np.mean(bstd) if self.norm else mod1_raw
                 mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
                 return  np.concatenate((mod1_tfidf, mod1_raw), axis=0), mod2_sample
 
             elif self.tfidf == 3:
-                mod1_raw = self.mod1_raw[index].reshape(-1).astype(np.float64)
-                mod1_raw = mod1_raw[self.mod1_index] if self.mod1_index != None else mod1_raw
                 mod1_ga = self.mod1_ga[index].reshape(-1).astype(np.float64)
                 return  np.concatenate((mod1_tfidf, mod1_ga), axis=0), mod2_sample
 
@@ -397,7 +402,7 @@ def get_data_dim(data_path, args):
     if args.tfidf == 2:
         mod1_dim = mod1_dim * 2
     elif args.tfidf == 3:
-        mod1_dim = mod1_dim * 1 + train_mod1.obsm['gene_activity'].shape[1]
+        mod1_dim = mod1_dim + train_mod1.obsm['gene_activity'].shape[1]
 
     # mod2 dim
     mod2_dim = train_mod2.X.shape[1]

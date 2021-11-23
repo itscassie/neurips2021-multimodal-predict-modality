@@ -21,7 +21,7 @@ def model_opts(parser):
     parser.add_argument("--epoch", "-e", type=int, default=50)
     parser.add_argument("--batch_size", "-bs", type=int, default=2048)
 
-    parser.add_argument("--dropout", type=float, default=0.2)
+    parser.add_argument("--dropout", "-dp", type=float, default=0.2)
     parser.add_argument("--hid_dim", type=int, default=1000)
     parser.add_argument("--emb_dim", type=int, default=128)
     parser.add_argument("--dryrun", action="store_true")
@@ -40,6 +40,7 @@ def model_opts(parser):
     parser.add_argument("--lr", "-lr", type=float, default=0.1)
     parser.add_argument("--lr_decay_epoch", type=int, default=80)
     parser.add_argument("--momentum", type=float, default=0.9)
+    parser.add_argument("--save_best_from", "-best", type=int, default=50)
 
     parser.add_argument("--rec_loss_weight", type=float, default=10)
     parser.add_argument("--cmn_loss_weight", type=float, default=1)
@@ -53,6 +54,7 @@ def model_opts(parser):
 
     parser.add_argument("--note", type=str, default=None)
     parser.add_argument("--name", type=str, default="")
+    parser.add_argument("--seed", type=int, default=6666)
     parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0, use -1 for CPU')
 
 ADT2GEX = {
