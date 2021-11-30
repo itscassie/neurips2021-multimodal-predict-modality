@@ -1,5 +1,5 @@
 functionality:
-  name: mse_v5
+  name: mse_v10
   namespace: predict_modality
   
   # metadata for your method
@@ -52,7 +52,7 @@ functionality:
   # files your script needs
   resources:
     - type: python_script
-      path: script_v5.py
+      path: script_v10.4.4.py
     # this include all files in "model/" directory 
     - path: model
   

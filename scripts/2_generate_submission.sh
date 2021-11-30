@@ -127,12 +127,9 @@ zip -9 -r -q submission_phase1v2.zip . \
   --exclude=output/datasets*/* \
   --exclude=submission*zip \
   --exclude=bin/* \
-  --exclude=model/logs/* \
   --exclude=model/analysis/* \
   --exclude=*.ipynb \
-  --exclude=*.zip \
-  --exclude=model/weights/*.pt \
-  --exclude=model/weights_v4/*.pt
+  --exclude=*.zip
 
 # print message
 echo ""

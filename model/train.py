@@ -38,6 +38,8 @@ elif args.tfidf == 3:
     exp_name += f'_tfidfconcatga'
 elif args.gene_activity:
     exp_name += f'_ga'
+if args.norm:
+    exp_name += f'_norm'
 if args.dropout != 0.2 :
     exp_name += f'_dropout{args.dropout}'
 
@@ -93,5 +95,5 @@ elif args.arch == 'batchgan':
 
 trainer.run()
 
-if args.mode not in ['gex2atac_p2', 'gex2adt_p2', 'adt2gex_p2', 'atac2gex_p2']:
+if args.mode in ['gex2atac', 'gex2adt', 'adt2gex', 'atac2gex']:
     trainer.eval()

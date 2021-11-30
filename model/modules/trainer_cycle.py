@@ -35,7 +35,7 @@ class TrainProcess():
             self.testset = SeqDataset(
                 DATASET[args.mode]['test_mod1'], DATASET[args.mode]['test_mod2'], 
                 mod1_idx_path=args.mod1_idx_path, tfidf=args.tfidf, mod1_idf=mod1_idf, 
-                batch_list=args.train_batch, norm=args.norm, gene_activity=args.gene_activity
+                batch_list=args.test_batch, norm=args.norm, gene_activity=args.gene_activity
             )
             logging.info(f"TEST_NUM : {len(self.testset):5d}")
         else:

@@ -108,7 +108,7 @@ class SeqDataset(Dataset):
             if self.batch_removal:
                 bmean_sample = self.batch_mean[self.batch[index]].reshape(-1).astype(np.float64)
                 bstd_sample = self.batch_std[self.batch[index]].reshape(-1).astype(np.float64)
-                mod2_sample = (mod2_sample - np.mean(bmean_sample)) / np.mean(bstd_sample)
+                mod2_sample = (mod2_sample - np.mean(bmean_sample))# / np.mean(bstd_sample)
         else:
             mod2_sample = -1
         
@@ -168,16 +168,16 @@ class BatchSeqDataset(Dataset):
         (self.mod1_index, _) = read_from_txt(mod1_idx_path, 'mod1') if mod1_idx_path != None else (None, None)
 
         if tfidf == 0:
-            self.mod1_data, _, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
+            self.mod1_data, _, self.mod1_sample_num, self.batch, _ = data_reader(mod1_path, batch_list)
         
         elif tfidf in [1, 2]:
-            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch = data_reader(mod1_path, batch_list)
+            self.mod1_raw, self.mod1_data, self.mod1_sample_num, self.batch, _ = data_reader(mod1_path, batch_list)
             # selection
             self.mod1_idf = mod1_idf[:, self.mod1_index] if self.mod1_index != None else mod1_idf
             self.mod1_idf = self.mod1_idf.astype(np.float64)
 
         if mod2_path != None:
-            self.mod2_data, _, self.mod2_sample_num, self.batch = data_reader(mod2_path, batch_list)
+            self.mod2_data, _, self.mod2_sample_num, self.batch, _ = data_reader(mod2_path, batch_list)
             assert self.mod1_sample_num == self.mod2_sample_num, '# of mod1 != # of mod2'
         else:
             self.mod2_data = -1
