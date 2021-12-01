@@ -233,26 +233,26 @@ elif input_train_mod2.var['feature_types'][0] == 'ADT':
     if LOAD_MODEL:
 
         # model (8b) nn
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_reg1_Nov18-21-24.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_nn_gex2adt_v2_Nov30-17-11.pt'
         y8b_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
 
         # model (9b) nn
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_new_Nov20-09-35.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_nn_gex2adt_v2_Nov30-18-44.pt'
         y9b_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
 
         # model (11b) nn
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_dropout0.3_Nov23-19-20.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_nn_gex2adt_v2_dropout0.3_Nov30-20-18.pt'
         y11b_pred_nn = pretrin_nn(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM)
 
         # model (23) pca
         y23_pred_pca = pca(input_train_mod1, input_test_mod1, n=50, alg='arpack')
         
         # model (25b) batchgan
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_batchgan_gex2adt_v2_dropout0.3_Nov24-22-36.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_batchgan_gex2adt_v2_dropout0.3_Nov30-21-52.pt'
         y25b_pred_bgan = pretrin_batchgan(par['input_test_mod1'], model_pth, MOD1_DIM, MOD2_DIM, FEAT_DIM, HIDDEN_DIM, cls_num=10)
 
         # model (16b) concat
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_tfidfconcat_Nov18-14-53.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_nn_gex2adt_v2_tfidfconcat_Nov30-23-29.pt'
         mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf_v2.npy')
         y16b_pred_concat = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
@@ -260,7 +260,7 @@ elif input_train_mod2.var['feature_types'][0] == 'ADT':
         )
 
         # model (17b) concat
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_tfidfconcat_new_Nov20-00-53.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_nn_gex2adt_v2_tfidfconcat_Dec01-04-22.pt'
         mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf.npy')
         y17b_pred_concat = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
@@ -268,7 +268,7 @@ elif input_train_mod2.var['feature_types'][0] == 'ADT':
         )
 
         # model (18b) concat
-        model_pth = meta['resources_dir'] + '/model/weights_v10/gex2adt/model_best_nn_gex2adt_v2_tfidfconcat_dropout0.3_Nov24-10-24.pt'
+        model_pth = meta['resources_dir'] + '/../weights/model_best_nn_gex2adt_v2_tfidfconcat_dropout0.3_Dec01-08-37.pt'
         mod1_idf = np.load(meta['resources_dir'] + '/model/idf_matrix/gex2adt/mod1_idf_v2.npy')
         y18b_pred_concat = pretrin_nn(
             par['input_test_mod1'], model_pth, MOD1_DIM*2, MOD2_DIM, FEAT_DIM, HIDDEN_DIM,
