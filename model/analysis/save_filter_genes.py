@@ -1,70 +1,91 @@
+""" saved filtered features using the scanpy package """
 import os
 import numpy as np
 import anndata as ad
 import scanpy as sc
 import pandas as pd
 
+# phase 1 v1 dataset
+V1_DIR = "../../output/datasets/predict_modality"
+CITE_PTH = "openproblems_bmmc_cite_phase1"
+MULTIOME_PTH = "openproblems_bmmc_multiome_phase1"
+
+ADT2GEX_PTH = "openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_"
+GEX2ADT_PTH = "openproblems_bmmc_cite_phase1_rna.censor_dataset.output_"
+ATAC2GEX_PTH = "openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_"
+GEX2ATAC_PTH = "openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_"
+
 ADT2GEX = [
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_mod2/openproblems_bmmc_cite_phase1_mod2.censor_dataset.output_test_mod2.h5ad'
+    f"{V1_DIR}/{CITE_PTH}_mod2/{ADT2GEX_PTH}train_mod1.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_mod2/{ADT2GEX_PTH}train_mod2.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_mod2/{ADT2GEX_PTH}test_mod1.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_mod2/{ADT2GEX_PTH}test_mod2.h5ad",
 ]
 
 GEX2ADT = [
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_rna/openproblems_bmmc_cite_phase1_rna.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_rna/openproblems_bmmc_cite_phase1_rna.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_rna/openproblems_bmmc_cite_phase1_rna.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_cite_phase1_rna/openproblems_bmmc_cite_phase1_rna.censor_dataset.output_test_mod2.h5ad'
+    f"{V1_DIR}/{CITE_PTH}_rna/{GEX2ADT_PTH}train_mod1.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_rna/{GEX2ADT_PTH}train_mod2.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_rna/{GEX2ADT_PTH}test_mod1.h5ad",
+    f"{V1_DIR}/{CITE_PTH}_rna/{GEX2ADT_PTH}test_mod2.h5ad",
 ]
 
 ATAC2GEX = [
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_mod2/openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_mod2/openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_mod2/openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_mod2/openproblems_bmmc_multiome_phase1_mod2.censor_dataset.output_test_mod2.h5ad',
+    f"{V1_DIR}/{MULTIOME_PTH}_mod2/{ATAC2GEX_PTH}train_mod1.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_mod2/{ATAC2GEX_PTH}train_mod2.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_mod2/{ATAC2GEX_PTH}test_mod1.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_mod2/{ATAC2GEX_PTH}test_mod2.h5ad",
 ]
 
 GEX2ATAC = [
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod1.h5ad',
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_train_mod2.h5ad',
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets/predict_modality/openproblems_bmmc_multiome_phase1_rna/openproblems_bmmc_multiome_phase1_rna.censor_dataset.output_test_mod2.h5ad' 
+    f"{V1_DIR}/{MULTIOME_PTH}_rna/{GEX2ATAC_PTH}train_mod1.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_rna/{GEX2ATAC_PTH}train_mod2.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_rna/{GEX2ATAC_PTH}test_mod1.h5ad",
+    f"{V1_DIR}/{MULTIOME_PTH}_rna/{GEX2ATAC_PTH}test_mod2.h5ad",
 ]
 
-ADT2GEX_v2 = [
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_mod2/openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_test_mod2.h5ad'
-]
+# phase 1 v2 dataset
+V2_DIR = "../../output/datasets_phase1v2/predict_modality"
+CITE_V2_PTH = "openproblems_bmmc_cite_phase1v2"
+MULTIOME_V2_PTH = "openproblems_bmmc_multiome_phase1v2"
 
-GEX2ADT_v2 = [
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_cite_phase1v2_rna/openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_test_mod2.h5ad'
-]
+ADT2GEX_V2_PTH = "openproblems_bmmc_cite_phase1v2_mod2.censor_dataset.output_"
+GEX2ADT_V2_PTH = "openproblems_bmmc_cite_phase1v2_rna.censor_dataset.output_"
+ATAC2GEX_V2_PTH = "openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_"
+GEX2ATAC_V2_PTH = "openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_"
 
-ATAC2GEX_v2 = [
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_train_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_train_mod2.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_mod2/openproblems_bmmc_multiome_phase1v2_mod2.censor_dataset.output_test_mod2.h5ad',
-]
+ADT2GEX_V2 = {
+    f"{V2_DIR}/{CITE_V2_PTH}_mod2/{ADT2GEX_V2_PTH}train_mod1.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_mod2/{ADT2GEX_V2_PTH}train_mod2.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_mod2/{ADT2GEX_V2_PTH}test_mod1.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_mod2/{ADT2GEX_V2_PTH}test_mod2.h5ad",
+}
 
-GEX2ATAC_v2 = [
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_train_mod1.h5ad',
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_train_mod2.h5ad',
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_test_mod1.h5ad', 
-'../../output/datasets_phase1v2/predict_modality/openproblems_bmmc_multiome_phase1v2_rna/openproblems_bmmc_multiome_phase1v2_rna.censor_dataset.output_test_mod2.h5ad' 
-]
+GEX2ADT_V2 = {
+    f"{V2_DIR}/{CITE_V2_PTH}_rna/{GEX2ADT_V2_PTH}train_mod1.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_rna/{GEX2ADT_V2_PTH}train_mod2.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_rna/{GEX2ADT_V2_PTH}test_mod1.h5ad",
+    f"{V2_DIR}/{CITE_V2_PTH}_rna/{GEX2ADT_V2_PTH}test_mod2.h5ad",
+}
+
+ATAC2GEX_V2 = {
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_mod2/{ATAC2GEX_V2_PTH}train_mod1.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_mod2/{ATAC2GEX_V2_PTH}train_mod2.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_mod2/{ATAC2GEX_V2_PTH}test_mod1.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_mod2/{ATAC2GEX_V2_PTH}test_mod2.h5ad",
+}
+
+GEX2ATAC_V2 = {
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_rna/{GEX2ATAC_V2_PTH}train_mod1.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_rna/{GEX2ATAC_V2_PTH}train_mod2.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_rna/{GEX2ATAC_V2_PTH}test_mod1.h5ad",
+    f"{V2_DIR}/{MULTIOME_V2_PTH}_rna/{GEX2ATAC_V2_PTH}test_mod2.h5ad",
+}
 
 # config
-DATAPTH = [ATAC2GEX_v2] # choices: ATAC2GEX, ADT2GEX, GEX2ADT, GEX2ATAC
-pct = 2 # percentage of filter gene
+DATAPTH = [ATAC2GEX_V2]  # choices: ATAC2GEX, ADT2GEX, GEX2ADT, GEX2ATAC
+PCT = 2  # percentage of filter gene
 """
-ATAC2GEX 
+ATAC2GEX
 mod 1 (17394, 116490)
 {pct: 5, min_cells: 869, feature_num: 13680}
 {pct: 2, min_cells: 347, feature_num: 29917}
@@ -95,42 +116,46 @@ for (i, mode) in enumerate(DATAPTH):
         join="outer",
         label="group",
         fill_value=0,
-        index_unique="-"
+        index_unique="-",
     )
-    min_cells = int(X_raw.X.shape[0] * 0.01 * pct)
-    print(f'min cells: {min_cells}')
+    min_cells = int(X_raw.X.shape[0] * 0.01 * PCT)
+    print(f"min cells: {min_cells}")
     print(X_raw.shape)
-    
+
     sc.pp.filter_genes(X_raw, min_cells=min_cells)
 
-    train_5pct = X_raw[:train_mod1.X.shape[0], :]
+    train_5pct = X_raw[: train_mod1.X.shape[0], :]
     train_5pct = ad.AnnData(
         X=train_5pct.X,
         obs=train_5pct.obs,
-        var=pd.DataFrame({'feature_types': train_mod1.var['feature_types'][X_raw.var_names]}),
+        var=pd.DataFrame({"feature_types": train_mod1.var["feature_types"][X_raw.var_names]}),
         uns=train_5pct.uns,
-        layers=train_5pct.layers
+        layers=train_5pct.layers,
     )
-    
-    test_5pct = X_raw[train_mod1.X.shape[0]:, :]
+
+    test_5pct = X_raw[train_mod1.X.shape[0] :, :]
     test_5pct = ad.AnnData(
         X=test_5pct.X,
         obs=test_5pct.obs,
-        var=pd.DataFrame({'feature_types': test_mod1.var['feature_types'][X_raw.var_names]}),
+        var=pd.DataFrame({"feature_types": test_mod1.var["feature_types"][X_raw.var_names]}),
         uns=test_5pct.uns,
-        layers=test_5pct.layers
+        layers=test_5pct.layers,
     )
     print(train_5pct)
     print(test_5pct)
-    
+
     mod1_vars = np.array(train_mod1.var_names)
-    mod1_5pct_idx = [int(np.where(mod1_vars == np.array(X_raw.var_names[i]))[0]) for i in range(np.array(X_raw.var_names).shape[0])]
-
-    file_path = f"../../../indexs/{str(train_mod1.var['feature_types'][0]).lower()}2{str(train_mod2.var['feature_types'][0]).lower()}"
+    mod1_5pct_idx = [
+        int(np.where(mod1_vars == np.array(X_raw.var_names[i]))[0])
+        for i in range(np.array(X_raw.var_names).shape[0])
+    ]
+    mod1 = str(train_mod1.var['feature_types'][0]).lower()
+    mod2 = str(train_mod2.var['feature_types'][0]).lower()
+    file_path = f"../../../indexs/{mod1}2{mod2}"
     os.makedirs(file_path, exist_ok=True)
-    index_file = open(f'{file_path}/index_{pct}pct_v2.txt', 'w')
-    index_file.write(f'index num: {len(mod1_5pct_idx)}\n')
+    index_file = open(f"{file_path}/index_{PCT}pct_v2.txt", "w")
+    index_file.write(f"index num: {len(mod1_5pct_idx)}\n")
     for ind in mod1_5pct_idx:
-        index_file.write(str(ind)+'\n')
+        index_file.write(str(ind) + "\n")
 
-    print(f'finish saving {file_path}/index_{pct}pct_v2.txt')
+    print(f"finish saving {file_path}/index_{PCT}pct_v2.txt")

@@ -1,5 +1,6 @@
+""" calculate metrics """
+
 import numpy as np
-import anndata as ad
 
 def rmse(mod2_sol, mod2_pred):
     """
@@ -7,5 +8,5 @@ def rmse(mod2_sol, mod2_pred):
     output: rmse
     """
     tmp = mod2_sol - mod2_pred
-    rmse = np.sqrt(tmp.power(2).mean())
-    return rmse
+    rmse_out = np.sqrt(tmp.power(2).mean())
+    return rmse_out

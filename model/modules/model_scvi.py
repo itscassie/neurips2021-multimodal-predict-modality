@@ -2,20 +2,17 @@
 The SCVI module contains simplified code from the python scvi package.
 https://github.com/YosefLab/scvi-tools/
 """
+from typing import Callable, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.distributions import Normal, Poisson
 from torch.distributions import kl_divergence as kl
 
-import numpy as np
-import pandas as pd
-from anndata import AnnData
-from typing import Callable, Iterable, List, Optional, NamedTuple
 
 from modules._negative_binomial import NegativeBinomial, ZeroInflatedNegativeBinomial
 from modules.model_ae import AutoEncoder
+
 
 def reparameterize_gaussian(mu, var):
     """
@@ -24,8 +21,11 @@ def reparameterize_gaussian(mu, var):
     """
     return Normal(mu, var.sqrt()).rsample()
 
+
 def identity(x):
+    """return identity"""
     return x
+
 
 class Encoder(nn.Module):
     """
@@ -50,6 +50,7 @@ class Encoder(nn.Module):
         Callable used to ensure positivity of the variance.
         When `None`, defaults to `torch.exp`.
     """
+
     def __init__(
         self,
         n_input: int,
@@ -58,8 +59,8 @@ class Encoder(nn.Module):
         dropout_rate: float = 0.1,
         distribution: str = "normal",
         var_eps: float = 1e-4,
-        var_activation: Optional[Callable] = None
-        ):
+        var_activation: Optional[Callable] = None,
+    ):
 
         super(Encoder, self).__init__()
         self.distribution = distribution
@@ -68,7 +69,7 @@ class Encoder(nn.Module):
             nn.Linear(n_input, n_hidden),
             nn.BatchNorm1d(n_hidden, eps=0.001, momentum=0.01),
             nn.ReLU(),
-            nn.Dropout(dropout_rate)
+            nn.Dropout(dropout_rate),
         )
         self.mean_encoder = nn.Linear(n_hidden, n_output)
         self.var_encoder = nn.Linear(n_hidden, n_output)
@@ -78,7 +79,7 @@ class Encoder(nn.Module):
         else:
             self.z_transformation = identity
         self.var_activation = torch.exp if var_activation is None else var_activation
-    
+
     def forward(self, x: torch.Tensor):
         """
         The forward computation for a single sample.
@@ -102,28 +103,22 @@ class Encoder(nn.Module):
         latent = self.z_transformation(reparameterize_gaussian(q_m, q_v))
         return q_m, q_v, latent
 
+
 class DecoderSCVI(nn.Module):
     """
     Decodes data from latent space of ``n_input`` dimensions into ``n_output``dimensions.
     Uses a fully-connected neural network of ``n_hidden`` layers.
     """
-    def __init__(
-        self, 
-        n_input: int,
-        n_output: int,
-        n_hidden: int = 128
-    ):
+
+    def __init__(self, n_input: int, n_output: int, n_hidden: int = 128):
         super(DecoderSCVI, self).__init__()
         self.px_decoder = nn.Sequential(
             nn.Linear(n_input, n_hidden),
             nn.BatchNorm1d(n_hidden, eps=0.001, momentum=0.01),
-            nn.ReLU()
+            nn.ReLU(),
         )
         # mean gamma
-        self.px_scale_decoder = nn.Sequential(
-            nn.Linear(n_hidden, n_output),
-            nn.Softmax(dim=-1)
-        )
+        self.px_scale_decoder = nn.Sequential(nn.Linear(n_hidden, n_output), nn.Softmax(dim=-1))
 
         # dispersion: here we only deal with gene-cell dispersion case
         self.px_r_decoder = nn.Linear(n_hidden, n_output)
@@ -131,18 +126,15 @@ class DecoderSCVI(nn.Module):
         # dropout
         self.px_dropout_decoder = nn.Linear(n_hidden, n_output)
 
-    def forward(
-        self, dispersion, z: torch.Tensor, library: torch.Tensor
-    ):
+    def forward(self, dispersion, z: torch.Tensor, library: torch.Tensor):
         """
         The forward computation for a single sample.
          #. Decodes the data from the latent space using the decoder network
          #. Returns parameters for the ZINB distribution of expression
         Parameters
         ----------
-        dispersion
-            * implement gene dispersion only
-            * ``'gene'`` - dispersion parameter of NB is constant per gene across cells
+        dispersion (implement gene dispersion only)
+            ``'gene'`` - dispersion parameter of NB is constant per gene across cells
         z :
             tensor with shape ``(n_input,)``
         library
@@ -152,7 +144,7 @@ class DecoderSCVI(nn.Module):
         4-tuple of :py:class:`torch.Tensor`
             parameters for the ZINB distribution of expression
         """
-        
+
         # The decoder returns values for the parameters of the ZINB distribution
         px = self.px_decoder(z)
         px_scale = self.px_scale_decoder(px)
@@ -160,39 +152,6 @@ class DecoderSCVI(nn.Module):
         # Clamp to high value: exp(12) ~ 160000 to avoid nans (computational stability)
         px_rate = torch.exp(torch.clamp(library, max=12)) * px_scale  # torch.clamp( , max=12)
         px_r = self.px_r_decoder(px) if dispersion == "gene-cell" else None
-        
-        return px_scale, px_r, px_rate, px_dropout
-
-class LinearDecoderSCVI(nn.Module):
-    def __init__(
-        self,
-        n_input: int,
-        n_output: int,
-        bias: bool = False,
-    ):
-        super(LinearDecoderSCVI, self).__init__()
-
-        # mean gamma
-        self.factor_regressor = nn.Sequential(
-            nn.Linear(n_input, n_output, bias=bias),
-            nn.BatchNorm1d(n_output)
-        )
-
-        # dropout
-        self.px_dropout_decoder = nn.Sequential(
-            nn.Linear(n_input, n_output, bias=bias),
-            nn.BatchNorm1d(n_output)
-        )
-
-    def forward(
-        self, dispersion: str, z: torch.Tensor, library: torch.Tensor
-    ):
-        # The decoder returns values for the parameters of the ZINB distribution
-        raw_px_scale = self.factor_regressor(z)
-        px_scale = torch.softmax(raw_px_scale, dim=-1)
-        px_dropout = self.px_dropout_decoder(z)
-        px_rate = torch.exp(library) * px_scale
-        px_r = None
 
         return px_scale, px_r, px_rate, px_dropout
 
@@ -316,34 +275,21 @@ class VAE(nn.Module):
         outputs = dict(z=z, qz_m=qz_m, qz_v=qz_v, ql_m=ql_m, ql_v=ql_v, library=library)
         return outputs
 
-    def generative(
-        self,
-        inference_outputs
-    ):
+    def generative(self, inference_outputs):
         """Runs the generative model."""
-        
+
         z = inference_outputs["z"]
         library = inference_outputs["library"]
 
         decoder_input = z
 
-        px_scale, px_r, px_rate, px_dropout = self.decoder(
-            self.dispersion, decoder_input, library
-        )
-        if self.dispersion == "gene-label":
-            px_r = F.linear(
-                one_hot(y, self.n_labels), self.px_r
-            )  # px_r gets transposed - last dimension is nb genes
-        elif self.dispersion == "gene-batch":
-            px_r = F.linear(one_hot(batch_index, self.n_batch), self.px_r)
-        elif self.dispersion == "gene":
+        px_scale, px_r, px_rate, px_dropout = self.decoder(self.dispersion, decoder_input, library)
+        if self.dispersion == "gene":
             px_r = self.px_r
 
         px_r = torch.exp(px_r)
 
-        return dict(
-            px_scale=px_scale, px_r=px_r, px_rate=px_rate, px_dropout=px_dropout
-        )
+        return dict(px_scale=px_scale, px_r=px_r, px_rate=px_rate, px_dropout=px_dropout)
 
     def loss(
         self,
@@ -352,6 +298,7 @@ class VAE(nn.Module):
         generative_outputs,
         kl_weight: float = 1.0,
     ):
+        """defines loss function"""
         qz_m = inference_outputs["qz_m"]
         qz_v = inference_outputs["qz_v"]
         px_rate = generative_outputs["px_rate"]
@@ -362,7 +309,7 @@ class VAE(nn.Module):
         scale = torch.ones_like(qz_v)
 
         kl_divergence_z = kl(Normal(qz_m, qz_v), Normal(mean, scale)).sum(dim=1)
-    
+
         kl_divergence_l = 0.0
         reconst_loss = self.get_reconstruction_loss(x, px_rate, px_r, px_dropout)
 
@@ -373,141 +320,24 @@ class VAE(nn.Module):
 
         loss = torch.mean(reconst_loss + weighted_kl_local)
 
-        kl_local = dict(
-            kl_divergence_l=kl_divergence_l, kl_divergence_z=kl_divergence_z
-        )
+        kl_local = dict(kl_divergence_l=kl_divergence_l, kl_divergence_z=kl_divergence_z)
         kl_global = torch.tensor(0.0)
-        return dict(
-            loss=loss, reconst_loss=reconst_loss, kl_local=kl_local, kl_global=kl_global
-        )
+        return dict(loss=loss, reconst_loss=reconst_loss, kl_local=kl_local, kl_global=kl_global)
 
     def get_reconstruction_loss(self, x, px_rate, px_r, px_dropout) -> torch.Tensor:
+        """returns reconstruction loss"""
         if self.gene_likelihood == "zinb":
             reconst_loss = (
-                -ZeroInflatedNegativeBinomial(
-                    mu=px_rate, theta=px_r, zi_logits=px_dropout
-                )
+                -ZeroInflatedNegativeBinomial(mu=px_rate, theta=px_r, zi_logits=px_dropout)
                 .log_prob(x)
                 .sum(dim=-1)
             )
         elif self.gene_likelihood == "nb":
-            reconst_loss = (
-                -NegativeBinomial(mu=px_rate, theta=px_r).log_prob(x).sum(dim=-1)
-            )
+            reconst_loss = -NegativeBinomial(mu=px_rate, theta=px_r).log_prob(x).sum(dim=-1)
         elif self.gene_likelihood == "poisson":
             reconst_loss = -Poisson(px_rate).log_prob(x).sum(dim=-1)
         return reconst_loss
-    
-    """
-    get_normalized_expression (inference stage)
-    Can be refer to: 
-    https://github.com/YosefLab/scvi-tools/blob/31fde3f4cf7d597cd94f1700035ce309ef0fbff7/scvi/model/base/_rnamixin.py#L41
-    """
-class LDVAE(VAE):
-    """
-    Linear-decoded Variational auto-encoder model.
-    Implementation of [Svensson20]_.
-    This model uses a linear decoder, directly mapping the latent representation
-    to gene expression levels. It still uses a deep neural network to encode
-    the latent representation.
-    Compared to standard VAE, this model is less powerful, but can be used to
-    inspect which genes contribute to variation in the dataset. It may also be used
-    for all scVI tasks, like differential expression, batch correction, imputation, etc.
-    However, batch correction may be less powerful as it assumes a linear model.
-    Parameters
-    ----------
-    n_input
-        Number of input genes
-    n_batch
-        Number of batches
-    n_labels
-        Number of labels
-    n_hidden
-        Number of nodes per hidden layer (for encoder)
-    n_latent
-        Dimensionality of the latent space
-    n_layers_encoder
-        Number of hidden layers used for encoder NNs
-    dropout_rate
-        Dropout rate for neural networks
-    dispersion
-        One of the following
-        * ``'gene'`` - dispersion parameter of NB is constant per gene across cells
-        * ``'gene-batch'`` - dispersion can differ between different batches
-        * ``'gene-label'`` - dispersion can differ between different labels
-        * ``'gene-cell'`` - dispersion can differ for every gene in every cell
-    log_variational
-        Log(data+1) prior to encoding for numerical stability. Not normalization.
-    gene_likelihood
-        One of
-        * ``'nb'`` - Negative binomial distribution
-        * ``'zinb'`` - Zero-inflated negative binomial distribution
-    use_batch_norm
-        Bool whether to use batch norm in decoder
-    bias
-        Bool whether to have bias term in linear decoder
-    """
 
-    def __init__(
-        self,
-        n_input: int,
-        n_batch: int = 0,
-        n_labels: int = 0,
-        n_hidden: int = 128,
-        n_latent: int = 10,
-        n_layers_encoder: int = 1,
-        dropout_rate: float = 0.1,
-        dispersion: str = "gene",
-        log_variational: bool = True,
-        gene_likelihood: str = "nb",
-        use_batch_norm: bool = True,
-        bias: bool = False,
-        latent_distribution: str = "normal",
-        **vae_kwargs,
-    ):
-        super().__init__(
-            n_input=n_input,
-            n_batch=n_batch,
-            n_labels=n_labels,
-            n_hidden=n_hidden,
-            n_latent=n_latent,
-            n_layers=n_layers_encoder,
-            dropout_rate=dropout_rate,
-            dispersion=dispersion,
-            log_variational=log_variational,
-            gene_likelihood=gene_likelihood,
-            latent_distribution=latent_distribution,
-            use_observed_lib_size=False,
-            **vae_kwargs,
-        )
-        self.use_batch_norm = use_batch_norm
-        self.z_encoder = Encoder(
-            n_input,
-            n_latent,
-            n_layers=n_layers_encoder,
-            n_hidden=n_hidden,
-            dropout_rate=dropout_rate,
-            distribution=latent_distribution,
-            use_batch_norm=True,
-            use_layer_norm=False,
-        )
-        self.l_encoder = Encoder(
-            n_input,
-            1,
-            n_layers=1,
-            n_hidden=n_hidden,
-            dropout_rate=dropout_rate,
-            use_batch_norm=True,
-            use_layer_norm=False,
-        )
-        self.decoder = LinearDecoderSCVI(
-            n_latent,
-            n_input,
-            n_cat_list=[n_batch],
-            use_batch_norm=use_batch_norm,
-            use_layer_norm=False,
-            bias=bias,
-        )
 
 class ModTransferSCVI(VAE):
     """
@@ -515,6 +345,7 @@ class ModTransferSCVI(VAE):
     AE inputs mod1 data and outputs mod2 data
     VAE inputs mod2 and do scVI model described in [Lopez18]_
     """
+
     def __init__(self, mod1_dim, mod2_dim, feat_dim, hidden_dim):
         super(ModTransferSCVI, self).__init__(mod2_dim)
         self.autoencoder = AutoEncoder(mod1_dim, mod2_dim, feat_dim, hidden_dim)
@@ -534,11 +365,13 @@ class ModTransferSCVI(VAE):
         )
 
     def forward(self, mod1_x):
+        """runs mod transfer and then scvi"""
         mod2_rec = torch.clamp(self.autoencoder(mod1_x), min=0)
         inference_outputs = self.scvivae.inference(mod2_rec)
         generative_outputs = self.scvivae.generative(inference_outputs)
 
         return mod2_rec, inference_outputs, generative_outputs
+
 
 class SCVIModTransfer(VAE):
     """
@@ -546,6 +379,7 @@ class SCVIModTransfer(VAE):
     SCVI VAE inputs mod1 and do scVI model described in [Lopez18]_
     AE inputs denoised mod1 data and outputs mod2 data
     """
+
     def __init__(self, mod1_dim, mod2_dim, feat_dim, hidden_dim):
         super(SCVIModTransfer, self).__init__(mod1_dim)
         self.scvivae = VAE(
@@ -565,31 +399,31 @@ class SCVIModTransfer(VAE):
         self.autoencoder = AutoEncoder(mod1_dim, mod2_dim, feat_dim, hidden_dim)
 
     def forward(self, mod1_x):
+        """runs scvi reconstruction then mod transfer"""
         inference_outputs = self.scvivae.inference(mod1_x)
         generative_outputs = self.scvivae.generative(inference_outputs)
-        mod2_rec = self.autoencoder(generative_outputs['px_rate'])
+        mod2_rec = self.autoencoder(generative_outputs["px_rate"])
 
         return mod2_rec, inference_outputs, generative_outputs
+
 
 if __name__ == "__main__":
     mod1_input = 134
     mod2_input = 26717
     c_dim = 20
-    n_hidden = 128
-    n_output = 10
+    n_hid = 128
     bsz = 5
-    
+
     # """
     x1 = torch.rand(bsz, mod1_input).cuda()
     x2 = torch.rand(bsz, mod2_input).cuda()
-    
-    mod2_transfer = ModTransferSCVI(mod1_input , mod2_input, c_dim, n_hidden).cuda()
-    mod2_rec, inference_outputs, generative_outputs = mod2_transfer(x1)
-    print(mod2_transfer)
-    print(mod2_rec, inference_outputs, generative_outputs)
 
-    scvimod2transfer = SCVIModTransfer(mod1_input , mod2_input, c_dim, n_hidden).cuda()
-    mod2_rec, inference_outputs, generative_outputs = scvimod2transfer(x1)
+    mod2_transfer = ModTransferSCVI(mod1_input, mod2_input, c_dim, n_hid).cuda()
+    mod2_rec_out, inference_out, generative_out = mod2_transfer(x1)
     print(mod2_transfer)
-    print(mod2_rec, inference_outputs, generative_outputs)
+    print(mod2_rec_out, inference_out, generative_out)
 
+    scvimod2transfer = SCVIModTransfer(mod1_input, mod2_input, c_dim, n_hid).cuda()
+    mod2_rec_out, inference_out, generative_out = scvimod2transfer(x1)
+    print(mod2_transfer)
+    print(mod2_rec_out, inference_out, generative_out)

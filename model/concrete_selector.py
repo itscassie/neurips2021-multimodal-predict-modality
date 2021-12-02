@@ -1,10 +1,9 @@
+""" this code select important feature index from dataset from a data persepective"""
 import logging
 import argparse
-import numpy as np
-import anndata as ad
 from datetime import datetime
 
-from modules.trainer_concrete import TrainProcess
+from trainer.trainer_concrete import TrainProcess
 
 
 from opts import DATASET, model_opts
@@ -15,20 +14,18 @@ parser = argparse.ArgumentParser(add_help=False)
 model_opts(parser)
 args = parser.parse_known_args()[0]
 
-time_now = datetime.now().strftime('%b%d-%H-%M')
+TIME_NOW = datetime.now().strftime("%b%d-%H-%M")
+LOG_FILE = f"../../logs/concrete_{args.mode}_{args.name}_{TIME_NOW}.log"
 logging.basicConfig(
-    level=logging.DEBUG, 
-    format='%(message)s',
-    handlers=[
-        logging.FileHandler(f"../../logs/concrete_{args.mode}_{args.name}_{time_now}.log", mode='w'),
-        logging.StreamHandler()
-        ]
-    )
+    level=logging.DEBUG,
+    format="%(message)s",
+    handlers=[logging.FileHandler(LOG_FILE, mode="w"), logging.StreamHandler()],
+)
 
 # load data
-mod1_dim, mod2_dim = get_data_dim(DATASET[args.mode], args)
-parser.add_argument('--mod1_dim', default=mod1_dim)
-parser.add_argument('--mod2_dim', default=mod2_dim)
+MOD1_DIM, MOD2_DIM = get_data_dim(DATASET[args.mode], args)
+parser.add_argument("--mod1_dim", default=MOD1_DIM)
+parser.add_argument("--mod2_dim", default=MOD2_DIM)
 args = parser.parse_args()
 
 logging.info("\nArgument:")
