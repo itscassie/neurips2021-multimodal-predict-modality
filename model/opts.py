@@ -32,15 +32,7 @@ def model_opts(parser):
         choices=[
             "nn",
             "cycle",
-            "batchgan",
-            "scvi",
-            "peakvi",
-            "rec",
-            "peakrec",
-            "scvirec",
-            "pairae",
-            "residual",
-            "pix2pix",
+            "batchgan"
         ],
     )
 

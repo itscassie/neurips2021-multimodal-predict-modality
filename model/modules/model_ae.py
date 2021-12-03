@@ -62,47 +62,6 @@ class AutoEncoder(nn.Module):
         return x_rec
 
 
-class Discriminator(nn.Module):
-    """base discriminator class for pix2pix method"""
-
-    def __init__(self, input_dim, hidden_dim=1000):
-        super(Discriminator, self).__init__()
-        self.dis = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.BatchNorm1d(hidden_dim),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LeakyReLU(0.2),
-            nn.BatchNorm1d(hidden_dim),
-            nn.Linear(hidden_dim, 1),
-            nn.Dropout(0.5),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x_feat):
-        """forward propogation of the discriminator arch"""
-        x_feat = x_feat + torch.normal(mean=0, std=0.3, size=x_feat.shape).cuda()
-        return self.dis(x_feat).view(-1)
-
-
-class Pix2Pix(nn.Module):
-    """pix2pix module"""
-
-    def __init__(self, input_dim, out_dim, feat_dim, hidden_dim=1000):
-        super(Pix2Pix, self).__init__()
-
-        self.autoencoder = AutoEncoder(input_dim, out_dim, feat_dim, hidden_dim)
-        self.discriminator = Discriminator(out_dim, hidden_dim)
-
-    def forward(self, x_input, y_real):
-        """forward propogation of the pix2pix arch"""
-        y_fake = self.autoencoder(x_input)
-        fake_score = self.discriminator(y_fake)
-        real_score = self.discriminator(y_real)
-
-        return y_fake, fake_score, real_score
-
-
 class BatchClassifier(nn.Module):
     """base batch classifier class"""
 
@@ -137,69 +96,6 @@ class BatchRemovalGAN(nn.Module):
         cls_prob = self.classifier(x_feat)
 
         return x_rec, cls_prob
-
-
-class CommonEncoder(nn.Module):
-    """base common encoder for residual method"""
-
-    def __init__(self, rna_input_size, atac_input_size, out_dim, hidden_dim=1000):
-        super(CommonEncoder, self).__init__()
-
-        self.rna_encoder = Encoder(rna_input_size, out_dim, hidden_dim)
-        self.atac_encoder = Encoder(atac_input_size, out_dim, hidden_dim)
-        self.rna_bn = nn.BatchNorm1d(rna_input_size, affine=True)
-        self.atac_bn = nn.BatchNorm1d(atac_input_size, affine=True)
-
-    def forward(self, rna_data, atac_data):
-        """forward propogation of the common encoder arch"""
-        rna_bn = self.rna_bn(rna_data)
-        rna_cm_emb = self.rna_encoder(rna_bn)
-
-        atac_bn = self.atac_bn(atac_data)
-        atac_cm_emb = self.atac_encoder(atac_bn)
-
-        return rna_cm_emb, atac_cm_emb
-
-
-class ResidEncoder(nn.Module):
-    """base residual encoder for residual method"""
-
-    def __init__(self, rna_input_size, atac_input_size, out_dim, hidden_dim=1000):
-        super(ResidEncoder, self).__init__()
-
-        self.rna_encoder = Encoder(rna_input_size, out_dim, hidden_dim)
-        self.atac_encoder = Encoder(atac_input_size, out_dim, hidden_dim)
-        self.rna_bn = nn.BatchNorm1d(rna_input_size, affine=True)
-        self.atac_bn = nn.BatchNorm1d(atac_input_size, affine=True)
-
-    def forward(self, rna_data, atac_data):
-        """forward propogation of the residual encoder arch"""
-        rna_bn = self.rna_bn(rna_data)
-        rna_resid_emb = self.rna_encoder(rna_bn)
-
-        atac_bn = self.atac_bn(atac_data)
-        atac_resid_emb = self.atac_encoder(atac_bn)
-
-        return rna_resid_emb, atac_resid_emb
-
-
-class ConcatEncoder(nn.Module):
-    """base concat decoder for residual method"""
-
-    def __init__(self, input_dim, rna_output_size, atac_output_size, hidden_dim=1000):
-        super(ConcatEncoder, self).__init__()
-        self.rna_decoder = Decoder(input_dim, rna_output_size, hidden_dim)
-        self.atac_decoder = Decoder(input_dim, atac_output_size, hidden_dim)
-
-    def forward(self, rna_cm_emb, atac_cm_emb, rna_resid_emb, atac_resid_emb):
-        """forward propogation of the concat decoder arch"""
-        rna_embedding = rna_cm_emb + rna_resid_emb
-        atac_embedding = atac_cm_emb + atac_resid_emb
-
-        rna_rec = self.rna_decoder(rna_embedding)
-        atac_rec = self.atac_decoder(atac_embedding)
-
-        return rna_rec, atac_rec
 
 
 if __name__ == "__main__":

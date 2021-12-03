@@ -56,6 +56,7 @@ model/modules/model_peakvi.py
 model/modules/model_scvi.py
 model/modules/_negative_binomial.py
 
+model/trainer/trainer_pix2pix.py
 model/trainer/trainer_rec.py
 model/trainer/trainer_scvi.py
 model/trainer/trainer_peakvi.py
