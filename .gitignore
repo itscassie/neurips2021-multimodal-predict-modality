@@ -51,7 +51,6 @@ weights/
 model/*.sh
 script_*.py
 
-model/analysis/*
 # dev modules
 model/modules/model_peakvi.py
 model/modules/model_scvi.py

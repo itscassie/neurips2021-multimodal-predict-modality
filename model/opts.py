@@ -1,5 +1,6 @@
 """ opt file for the model """
 
+
 def model_opts(parser):
     """model opts"""
     # model setting
@@ -8,10 +9,21 @@ def model_opts(parser):
         type=str,
         required=True,
         choices=[
-            "gex2atac", "gex2adt", "adt2gex", "atac2gex",
-            "gex2atac_v2", "gex2adt_v2", "adt2gex_v2", "atac2gex_v2",
-            "gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2",
+            "gex2atac",
+            "gex2adt",
+            "adt2gex",
+            "atac2gex",
+            "gex2atac_v2",
+            "gex2adt_v2",
+            "adt2gex_v2",
+            "atac2gex_v2",
+            "gex2atac_p2",
+            "gex2adt_p2",
+            "adt2gex_p2",
+            "atac2gex_p2",
         ],
+        help="Desired training mode, \
+        v2: phase 1 v2 data, p2: phase 2 data",
     )
 
     parser.add_argument(
@@ -19,21 +31,25 @@ def model_opts(parser):
         type=str,
         nargs="*",
         default=[],
-        help="v1: train = ['s1d1', 's2d1', 's2d4', 's3d6', 's3d7'], v1 test  = ['s1d2'] \
+        help="Desired training batch \
+            v1: train = ['s1d1', 's2d1', 's2d4', 's3d6', 's3d7'], v1 test  = ['s1d2'] \
             v2 train = ['s1d1', 's1d2', 's1d3', 's2d1', 's2d4', 's2d5', 's3d6', 's3d7'] \
             v2 test  = ['s1d2', 's3d10'] \
             p3 train = [s1: d1, d2, d3; s2: d1, d4 d5; s3: d1, d3, d6, d7, d10]",
     )
-    parser.add_argument("--test_batch", type=str, nargs="*", default=[])
+    parser.add_argument(
+        "--test_batch",
+        type=str,
+        nargs="*",
+        default=[],
+        help="Desired testing batch"
+    )
     parser.add_argument(
         "--arch",
         type=str,
         default="nn",
-        choices=[
-            "nn",
-            "cycle",
-            "batchgan"
-        ],
+        choices=["nn", "cycle", "batchgan"],
+        help="Desired training archetecture",
     )
 
     # training strategy
@@ -46,13 +62,31 @@ def model_opts(parser):
     parser.add_argument("--emb_dim", type=int, default=128)
 
     # save model config
-    parser.add_argument("--dryrun", action="store_true")
+    parser.add_argument(
+        "--dryrun",
+        action="store_true",
+        help="True: saves weights, logs, runs (tensorboard) during training, \
+            False: saves runs (tensorboard) only during training",
+    )
     parser.add_argument("--save_best_from", "-best", type=int, default=50)
 
     # data preprocess settings
-    parser.add_argument("--norm", action="store_true")
-    parser.add_argument("--gene_activity", action="store_true")
-    parser.add_argument("--selection", action="store_true")
+    parser.add_argument(
+        "--norm",
+        action="store_true",
+        help="True for normalize mod1 input data batch-wise",
+    )
+    parser.add_argument(
+        "--gene_activity",
+        action="store_true",
+        help="True for use gene activity geature in mod1 input, \
+            Can be apply only on atac2gex* mode",
+    )
+    parser.add_argument(
+        "--selection",
+        action="store_true",
+        help="True for using the selected feature index",
+    )
     parser.add_argument("--select_dim", type=int, default=1000)
     parser.add_argument("--mod1_idx_path", type=str, default=None)
     parser.add_argument(
@@ -60,9 +94,18 @@ def model_opts(parser):
         type=int,
         default=0,
         choices=[0, 1, 2, 3],
-        help="0: raw data input, 1: tfidf input, 2: concat [raw, tfidf] data input",
+        help="The tfidf mode. \
+        0: raw data input \
+        1: tfidf input \
+        2: concat [raw, tfidf] feature \
+        3: concat [gene activity, tfidf] feature",
     )
-    parser.add_argument("--idf_path", type=str, default=None)
+    parser.add_argument(
+        "--idf_path",
+        type=str,
+        default=None,
+        help="The path to pre-calculated idf matrix, required if tfidf != 0",
+    )
 
     # optimizers
     parser.add_argument("--lr", "-lr", type=float, default=0.1)
@@ -71,15 +114,15 @@ def model_opts(parser):
 
     # loss function setting
     parser.add_argument("--rec_loss_weight", type=float, default=10)
-    parser.add_argument("--cmn_loss_weight", type=float, default=1)
-    parser.add_argument("--cos_loss_weight", type=float, default=1)
     parser.add_argument("--reg_loss_weight", type=float, default=0)
 
     # load pretrain weights
-    parser.add_argument("--checkpoint", type=str, default=None)
-    parser.add_argument("--pretrain_scvi", type=str, default=None)
-    parser.add_argument("--pretrain_weight", type=str, default=None)
-    parser.add_argument("--pretrain_epoch", type=int, default=100)
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to pre-trained model checkpoint",
+    )
 
     # name and notes
     parser.add_argument("--note", type=str, default=None)

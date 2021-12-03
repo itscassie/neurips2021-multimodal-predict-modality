@@ -22,7 +22,7 @@ class TrainProcess():
     """ the training process for nn arch """
     def __init__(self, args):
         self.args = args
-        self.writer = SummaryWriter(log_dir=f"../../runs/{args.exp_name}")
+        self.writer = SummaryWriter(log_dir=f"../runs/{args.exp_name}")
         self.device = (
             torch.device(f"cuda:{args.gpu_ids[0]}")
             if args.gpu_ids
@@ -169,13 +169,13 @@ class TrainProcess():
 
         # save checkpoint
         if not self.args.dryrun:
-            filename = f"../../weights/model_{self.args.exp_name}.pt"
+            filename = f"../weights/model_{self.args.exp_name}.pt"
             print(f"saving weight to {filename} ...")
             torch.save(self.model.state_dict(), filename)
 
             # best weight
             if save_best and epoch > self.args.save_best_from:
-                filename = f"../../weights/model_best_{self.args.exp_name}.pt"
+                filename = f"../weights/model_best_{self.args.exp_name}.pt"
                 print(f"saving best weight to {filename} ...")
                 torch.save(self.model.state_dict(), filename)
 

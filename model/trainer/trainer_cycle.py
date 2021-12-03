@@ -27,7 +27,7 @@ class TrainProcess:
 
     def __init__(self, args):
         self.args = args
-        self.writer = SummaryWriter(log_dir=f"../../runs/{args.exp_name}")
+        self.writer = SummaryWriter(log_dir=f"../runs/{args.exp_name}")
         self.device = (
             torch.device(f"cuda:{args.gpu_ids[0]}") if args.gpu_ids else torch.device("cpu")
         )
@@ -219,7 +219,7 @@ class TrainProcess:
 
         # save checkpoint
         if not self.args.dryrun:
-            filename = f"../../weights/model_{self.args.exp_name}.pt"
+            filename = f"../weights/model_{self.args.exp_name}.pt"
             print(f"saving weight to {filename} ...")
             torch.save(
                 {
@@ -231,12 +231,12 @@ class TrainProcess:
             )
 
             # A to B
-            filenameAtoB = f"../../weights/model_AtoB_{self.args.exp_name}.pt"
+            filenameAtoB = f"../weights/model_AtoB_{self.args.exp_name}.pt"
             print(f"saving AtoB weight to {filenameAtoB} ...")
             torch.save(self.model_AtoB.state_dict(), filenameAtoB)
 
             if save_best and epoch > self.args.save_best_from:
-                filename = f"../../weights/model_best_{self.args.exp_name}.pt"
+                filename = f"../weights/model_best_{self.args.exp_name}.pt"
                 print(f"saving best weight to {filename} ...")
                 torch.save(
                     {
@@ -248,7 +248,7 @@ class TrainProcess:
                 )
 
                 # A to B
-                filenameAtoB = f"../../weights/model_best_AtoB_{self.args.exp_name}.pt"
+                filenameAtoB = f"../weights/model_best_AtoB_{self.args.exp_name}.pt"
                 print(f"saving best AtoB weight to {filenameAtoB} ...")
                 torch.save(self.model_AtoB.state_dict(), filenameAtoB)
 
@@ -343,6 +343,6 @@ class TrainProcess:
         checkpoint_name = (
             self.args.checkpoint.replace("../", "").replace("weights/", "").replace("model_", "")
         )
-        filename = f"../../weights/model_AtoB_{checkpoint_name}"
+        filename = f"../weights/model_AtoB_{checkpoint_name}"
         print(f"saving AtoB weight to {filename} ...")
         torch.save(self.model_AtoB.state_dict(), filename)

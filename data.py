@@ -154,5 +154,5 @@ def print_data_stats(datapath, verbose=False):
 if __name__ == "__main__":
     # DATAPTH = [ADT2GEX, GEX2ADT, ATAC2GEX, GEX2ATAC]
     # DATAPTH = [ADT2GEX_V2, GEX2ADT_V2, ATAC2GEX_V2, GEX2ATAC_V2]
-    DATAPTH = [ATAC2GEX_P2, GEX2ATAC_P2]
+    DATAPTH = [ADT2GEX_P2, GEX2ADT_P2, ATAC2GEX_P2, GEX2ATAC_P2]
     print_data_stats(DATAPTH)

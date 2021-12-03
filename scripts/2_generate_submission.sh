@@ -128,6 +128,9 @@ zip -9 -r -q submission_phase1v2.zip . \
   --exclude=submission*zip \
   --exclude=bin/* \
   --exclude=model/analysis/* \
+  --exclude=logs/* \
+  --exclude=runs/* \
+  --exclude=weights/* \
   --exclude=*.ipynb \
   --exclude=*.zip
 

@@ -1,4 +1,5 @@
 """ main training process """
+import os
 import logging
 import argparse
 from datetime import datetime
@@ -6,12 +7,6 @@ from datetime import datetime
 from trainer.trainer_nn import TrainProcess as TrainProcess_NN
 from trainer.trainer_cycle import TrainProcess as TrainProcess_Cycle
 from trainer.trainer_batchgan import TrainProcess as TrainProcess_BATCHGAN
-from trainer.trainer_pix2pix import TrainProcess as TrainProcess_Pix2Pix
-from trainer.trainer_rec import TrainProcess as TrainProcess_REC
-from trainer.trainer_scvi import TrainProcess as TrainProcess_SCVI
-from trainer.trainer_peakvi import TrainProcess as TrainProcess_PEAKVI
-from trainer.trainer_pairae import TrainProcess as TrainProcess_PairAE
-from trainer.trainer_residual import TrainProcess as TrainProcess_Res
 
 from opts import DATASET, model_opts
 from utils.dataloader import get_data_dim
@@ -51,8 +46,10 @@ if __name__ == "__main__":
     if args.dryrun:
         handlers = [logging.StreamHandler()]
     else:
+        os.makedirs('../logs/', exist_ok=True)
+        os.makedirs('../weights/', exist_ok=True)
         handlers = [
-            logging.FileHandler(f"../../logs/train_{exp_name}.log", mode="w"),
+            logging.FileHandler(f"../logs/train_{exp_name}.log", mode="w"),
             logging.StreamHandler(),
         ]
 
@@ -71,26 +68,17 @@ if __name__ == "__main__":
         logging.info(f"{arg:20s}: {value}")
     logging.info("\n")
 
+    # trainer
     if args.arch == "nn":
         trainer = TrainProcess_NN(args)
-    elif args.arch == "pairae":
-        trainer = TrainProcess_PairAE(args)
-    elif args.arch == "residual":
-        trainer = TrainProcess_Res(args)
-    elif args.arch == "pix2pix":
-        trainer = TrainProcess_Pix2Pix(args)
     elif args.arch == "cycle":
         trainer = TrainProcess_Cycle(args)
-    elif args.arch == "scvi":
-        trainer = TrainProcess_SCVI(args)
-    elif args.arch in ["rec", "peakrec", "scvirec"]:
-        trainer = TrainProcess_REC(args)
-    elif args.arch == "peakvi":
-        trainer = TrainProcess_PEAKVI(args)
     elif args.arch == "batchgan":
         trainer = TrainProcess_BATCHGAN(args)
 
+    # training
     trainer.run()
 
-    if args.mode in ["gex2atac", "gex2adt", "adt2gex", "atac2gex"]:
+    # evaluation
+    if args.mode not in ["gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2"]:
         trainer.eval()
