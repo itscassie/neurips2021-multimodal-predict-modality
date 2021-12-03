@@ -31,7 +31,6 @@ MANIFEST
 bin/
 work/
 .nextflow/
-sample_data/
 target/
 output/
 
@@ -39,19 +38,31 @@ output/
 .nextflow*
 
 # model
-model/logs/
-model/weights*/
-model/outputs/
-model.pt
+logs/
+runs/
+weights/
 .swp
 *.h5ad
 *.png
 *.ipynb
-*.pth
+*.pt
 
 # specific file
 model/*.sh
-model/idf_matrix/*
-model/indexs/*
+script_*.py
 
+# dev modules
+model/modules/model_peakvi.py
+model/modules/model_scvi.py
+model/modules/_negative_binomial.py
 
+model/trainer/trainer_rec.py
+model/trainer/trainer_scvi.py
+model/trainer/trainer_peakvi.py
+model/trainer/trainer_pairae.py
+model/trainer/trainer_residual.py
+
+# concrete selection
+model/concrete_selector.py
+model/modules/model_concrete.py
+model/trainer/trainer_concrete.py
