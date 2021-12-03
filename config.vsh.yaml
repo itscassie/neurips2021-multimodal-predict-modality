@@ -52,7 +52,7 @@ functionality:
   # files your script needs
   resources:
     - type: python_script
-      path: script_v10.4.4.py
+      path: script_v10.5.py
     # this include all files in "model/" directory 
     - path: model
   
