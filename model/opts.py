@@ -9,23 +9,14 @@ def model_opts(parser):
         type=str,
         required=True,
         choices=[
-            "gex2atac",
-            "gex2adt",
-            "adt2gex",
-            "atac2gex",
-            "gex2atac_v2",
-            "gex2adt_v2",
-            "adt2gex_v2",
-            "atac2gex_v2",
-            "gex2atac_p2",
-            "gex2adt_p2",
-            "adt2gex_p2",
-            "atac2gex_p2",
+            "gex2atac", "gex2adt", "adt2gex", "atac2gex",
+            "gex2atac_v2", "gex2adt_v2", "adt2gex_v2", "atac2gex_v2",
+            "gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2",
         ],
         help="Desired training mode, \
         v2: phase 1 v2 data, p2: phase 2 data",
     )
-    
+
     parser.add_argument(
         "--train",
         type=str,
@@ -65,7 +56,7 @@ def model_opts(parser):
         type=int,
         default=6666,
         help="Seed used for reproducibility in spliting phase 2 dataset into train/tes set. \
-            Useless if training on phase 1 v1 & phase 1 v2 data."
+            Useless if training on phase 1 v1 & phase 1 v2 data.",
     )
 
     # optimization
@@ -105,7 +96,8 @@ def model_opts(parser):
         "--mod1_idx_path",
         type=str,
         default=None,
-        help="The path to mod1 index path (.np), required when selection=True")
+        help="The path to mod1 index path (.np), required when selection=True",
+    )
     parser.add_argument(
         "--tfidf",
         type=int,
@@ -143,7 +135,10 @@ def model_opts(parser):
     parser.add_argument("--note", type=str, default=None)
     parser.add_argument("--name", type=str, default="")
     parser.add_argument(
-        "--gpu_ids", type=str, default="0", help="gpu ids: e.g. 0, use -1 for CPU"
+        "--gpu_ids",
+        type=str,
+        default="0",
+        help="gpu ids: e.g. 0, use -1 for CPU"
     )
 
 
