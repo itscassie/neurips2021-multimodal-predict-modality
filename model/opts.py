@@ -3,7 +3,7 @@
 
 def model_opts(parser):
     """model opts"""
-    # model setting
+    # model / data setting
     parser.add_argument(
         "--mode",
         type=str,
@@ -25,6 +25,22 @@ def model_opts(parser):
         help="Desired training mode, \
         v2: phase 1 v2 data, p2: phase 2 data",
     )
+    
+    parser.add_argument(
+        "--train",
+        type=str,
+        default="train",
+        choices=["train", "eval"],
+        help="Training or evaluating the model"
+    )
+
+    parser.add_argument(
+        "--arch",
+        type=str,
+        default="nn",
+        choices=["nn", "cycle", "batchgan"],
+        help="Desired training architecture",
+    )
 
     parser.add_argument(
         "--train_batch",
@@ -35,7 +51,7 @@ def model_opts(parser):
             v1: train = ['s1d1', 's2d1', 's2d4', 's3d6', 's3d7'], v1 test  = ['s1d2'] \
             v2 train = ['s1d1', 's1d2', 's1d3', 's2d1', 's2d4', 's2d5', 's3d6', 's3d7'] \
             v2 test  = ['s1d2', 's3d10'] \
-            p3 train = [s1: d1, d2, d3; s2: d1, d4 d5; s3: d1, d3, d6, d7, d10]",
+            p3 train = [s1: d1, d2, d3; s2: d1, d4, d5; s3: d1, d3, d6, d7, d10]",
     )
     parser.add_argument(
         "--test_batch",
@@ -45,32 +61,30 @@ def model_opts(parser):
         help="Desired testing batch"
     )
     parser.add_argument(
-        "--arch",
-        type=str,
-        default="nn",
-        choices=["nn", "cycle", "batchgan"],
-        help="Desired training archetecture",
+        "--seed",
+        type=int,
+        default=6666,
+        help="Seed used for reproducibility in spliting phase 2 dataset into train/tes set. \
+            Useless if training on phase 1 v1 & phase 1 v2 data."
     )
 
-    # training strategy
-    parser.add_argument("--epoch", "-e", type=int, default=50)
+    # optimization
+    parser.add_argument("--epoch", "-e", type=int, default=200)
     parser.add_argument("--batch_size", "-bs", type=int, default=2048)
+    parser.add_argument("--lr", "-lr", type=float, default=0.1)
+    parser.add_argument("--lr_decay_epoch", type=int, default=40)
+    parser.add_argument("--momentum", type=float, default=0.9)
 
-    # model arch
+    # model architecture
     parser.add_argument("--dropout", "-dp", type=float, default=0.2)
     parser.add_argument("--hid_dim", type=int, default=1000)
     parser.add_argument("--emb_dim", type=int, default=128)
 
-    # save model config
-    parser.add_argument(
-        "--dryrun",
-        action="store_true",
-        help="True: saves weights, logs, runs (tensorboard) during training, \
-            False: saves runs (tensorboard) only during training",
-    )
-    parser.add_argument("--save_best_from", "-best", type=int, default=50)
+    # loss functions
+    parser.add_argument("--reg_loss_weight", type=float, default=0)
+    parser.add_argument("--rec_loss_weight", type=float, default=10)
 
-    # data preprocess settings
+    # data preprocessing
     parser.add_argument(
         "--norm",
         action="store_true",
@@ -79,7 +93,7 @@ def model_opts(parser):
     parser.add_argument(
         "--gene_activity",
         action="store_true",
-        help="True for use gene activity geature in mod1 input, \
+        help="True for use gene activity feature in mod1 input, \
             Can be apply only on atac2gex* mode",
     )
     parser.add_argument(
@@ -87,8 +101,11 @@ def model_opts(parser):
         action="store_true",
         help="True for using the selected feature index",
     )
-    parser.add_argument("--select_dim", type=int, default=1000)
-    parser.add_argument("--mod1_idx_path", type=str, default=None)
+    parser.add_argument(
+        "--mod1_idx_path",
+        type=str,
+        default=None,
+        help="The path to mod1 index path (.np), required when selection=True")
     parser.add_argument(
         "--tfidf",
         type=int,
@@ -107,16 +124,14 @@ def model_opts(parser):
         help="The path to pre-calculated idf matrix, required if tfidf != 0",
     )
 
-    # optimizers
-    parser.add_argument("--lr", "-lr", type=float, default=0.1)
-    parser.add_argument("--lr_decay_epoch", type=int, default=80)
-    parser.add_argument("--momentum", type=float, default=0.9)
-
-    # loss function setting
-    parser.add_argument("--rec_loss_weight", type=float, default=10)
-    parser.add_argument("--reg_loss_weight", type=float, default=0)
-
-    # load pretrain weights
+    # save/load model
+    parser.add_argument(
+        "--dryrun",
+        action="store_true",
+        help="True: saves weights, logs, runs (tensorboard) during training, \
+            False: saves runs (tensorboard) only during training",
+    )
+    parser.add_argument("--save_best_from", "-best", type=int, default=50)
     parser.add_argument(
         "--checkpoint",
         type=str,
@@ -124,12 +139,9 @@ def model_opts(parser):
         help="Path to pre-trained model checkpoint",
     )
 
-    # name and notes
+    # others
     parser.add_argument("--note", type=str, default=None)
     parser.add_argument("--name", type=str, default="")
-
-    # reproduce
-    parser.add_argument("--seed", type=int, default=6666)
     parser.add_argument(
         "--gpu_ids", type=str, default="0", help="gpu ids: e.g. 0, use -1 for CPU"
     )

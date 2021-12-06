@@ -17,39 +17,63 @@ if __name__ == "__main__":
     model_opts(parser)
     args = parser.parse_known_args()[0]
 
-    # exp name for log, weights, model
-    TIME_NOW = datetime.now().strftime("%b%d-%H-%M")
-    exp_name = f"{args.arch}_{args.mode}"
-    if args.selection:
-        assert args.mod1_idx_path is not None, "need to specified --mod1_idx_path"
-        SELECT_NUM = (
-            args.mod1_idx_path.split("/")[-1].replace(".txt", "").replace("index_", "")
-        )
-        exp_name += f"_select{SELECT_NUM}"
-    if args.tfidf == 1:
-        exp_name += f"_tfidf"
-    elif args.tfidf == 2:
-        exp_name += f"_tfidfconcat"
-    elif args.tfidf == 3:
-        exp_name += f"_tfidfconcatga"
-    elif args.gene_activity:
-        exp_name += f"_ga"
-    if args.norm:
-        exp_name += f"_norm"
-    if args.dropout != 0.2:
-        exp_name += f"_dropout{args.dropout}"
-    if args.name != "":
-        exp_name += f"_{args.name}"
-    exp_name += f"_{TIME_NOW}"
+    # exp name for train log, weights, model
+    if args.train == "train":
+        TIME_NOW = datetime.now().strftime("%b%d-%H-%M")
+        exp_name = f"{args.arch}_{args.mode}"
+        if args.selection:
+            assert args.mod1_idx_path is not None, "need to specified --mod1_idx_path"
+            SELECT_NUM = (
+                args.mod1_idx_path.split("/")[-1].replace(".txt", "").replace("index_", "")
+            )
+            exp_name += f"_select{SELECT_NUM}"
+
+        if args.tfidf != 0:
+            assert args.idf_path is not None, "need to specified --idf_path"
+            assert args.gene_activity == False, "support either ga or tfidf != 0"
+            if args.tfidf == 1:
+                exp_name += f"_tfidf"
+            elif args.tfidf == 2:
+                exp_name += f"_tfidfconcat"
+            elif args.tfidf == 3:
+                exp_name += f"_tfidfconcatga"
+                assert args.mode in [
+                    "atac2gex_v2",
+                    "atac2gex_p2",
+                ], "gene activity mode support only atac2gex mode (v2 or above)"
+        elif args.gene_activity:
+            exp_name += f"_ga"
+            assert args.mode in [
+                "atac2gex_v2",
+                "atac2gex_p2",
+            ], "gene activity mode support only atac2gex mode (v2 or above)"
+        if args.norm:
+            exp_name += f"_norm"
+        if args.dropout != 0.2:
+            exp_name += f"_dropout{args.dropout}"
+        if args.name != "":
+            exp_name += f"_{args.name}"
+        exp_name += f"_{TIME_NOW}"
+
+    # exp name for eval log file
+    elif args.train == "eval":
+        assert args.checkpoint is not None, "need to specified --checkpoint"
+        exp_name = args.checkpoint.split("/")[-1].replace(".pt", "")
+        if args.mode in ["gex2atac", "gex2adt", "adt2gex", "atac2gex"]:
+            exp_name += "_p1v1"
+        elif args.mode in ["gex2atac_v2", "gex2adt_v2", "adt2gex_v2", "atac2gex_v2"]:
+            exp_name += "_p1v2"
+        elif args.mode in ["gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2"]:
+            exp_name += "_p2"
 
     # loggings and logs
     if args.dryrun:
         handlers = [logging.StreamHandler()]
     else:
-        os.makedirs('../logs/', exist_ok=True)
-        os.makedirs('../weights/', exist_ok=True)
+        os.makedirs("../logs/", exist_ok=True)
+        os.makedirs("../weights/", exist_ok=True)
         handlers = [
-            logging.FileHandler(f"../logs/train_{exp_name}.log", mode="w"),
+            logging.FileHandler(f"../logs/{args.train}_{exp_name}.log", mode="w"),
             logging.StreamHandler(),
         ]
 
@@ -76,9 +100,14 @@ if __name__ == "__main__":
     elif args.arch == "batchgan":
         trainer = TrainProcess_BATCHGAN(args)
 
-    # training
-    trainer.run()
+    if args.train == "train":
+        # training
+        trainer.run()
 
-    # evaluation
-    if args.mode not in ["gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2"]:
+        # evaluation
+        if args.mode not in ["gex2atac_p2", "gex2adt_p2", "adt2gex_p2", "atac2gex_p2"]:
+            trainer.eval()
+
+    elif args.train == "eval":
+        trainer.load_checkpoint()
         trainer.eval()

@@ -110,7 +110,7 @@ GEX2ATAC_P2 = [
 ]
 
 # place the desired data path
-DATAPTH = [ADT2GEX]
+DATAPTH = [ADT2GEX_V2]
 
 
 def idf_matrix(x_raw):
@@ -146,5 +146,5 @@ for (i, mode) in enumerate(DATAPTH):
     file_path = f"../../../idf_matrix/{mod1}2{mod2}"
     print(file_path)
     os.makedirs(file_path, exist_ok=True)
-    np.save(f"{file_path}/mod1_idf_p2.npy", x_idf_matrix)
-    print(f"finish saving {file_path}/mod1_idf_p2.npy")
+    np.save(f"{file_path}/mod1_idf_v2.npy", x_idf_matrix)
+    print(f"finish saving {file_path}/mod1_idf_v2.npy")
