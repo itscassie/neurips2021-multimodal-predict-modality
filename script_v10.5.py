@@ -2,6 +2,7 @@
 This is the script of modality prediction of all 4 subtasks
 Dependencies: 
 pip: scikit-learn, anndata, scanpy, numpy
+uncomment the block in line 630 if you want to test rmse directly using $ python script_v10.5.py
 """
 
 import sys
@@ -626,7 +627,7 @@ y_pred = csc_matrix(y_pred)
 
 # use only in python test
 # uncomment this block if you want to test rmse
-# """
+"""
 mod2_sol = ad.read_h5ad(par["input_test_mod2"]).X
 logging.info(rmse(y_pred, mod2_sol))
 # """
