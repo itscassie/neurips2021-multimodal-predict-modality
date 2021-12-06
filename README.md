@@ -1,12 +1,24 @@
-[NeurIPS Open Problems] Predict Modality
+[NeurIPS 2021 Competition Track - Multimodal Single-Cell Data Integration] Predict Modality
 ===
-This repo contains the training pipeline and script used for the **NeurIPS Open Problems - Predict Modality** task
+This repo contains the training pipeline and script used for the **NeurIPS 2021 Competition - Multimodal Single-Cell Data Integration**, the **Predict Modality** task.
 
 Full documentation for the competition, including dataset, can be found online at [openproblems.bio/neurips_docs/](https://openproblems.bio/neurips_docs/). 
 
 # Table of Contents
 
-[TOC]
+- [Getting Started](#getting-started)
+- [Folder Sturcture](#folder-sturcture)
+- [Training Pipeline](#training-pipeline)
+  * [Environment setting](#environment-setting)
+  * [Training and Evaluation](#training-and-evaluation)
+    + [Model and Data Settings](#model-and-data-settings)
+    + [Optimization](#optimization)
+    + [Model Architecture](#model-architecture)
+    + [Loss Functions](#loss-functions)
+    + [Data Preprocessing](#data-preprocessing)
+    + [Save or Load Model](#save-or-load-model)
+    + [Others](#others)
+  * [Preprocessing (optional)](#preprocessing--optional-)
 
 # Getting Started
 * Check and download the [Starter kit contents](https://openproblems.bio/neurips_docs/submission/starter_kit_contents/) for a quickguide and script.
@@ -94,7 +106,7 @@ Full documentation for the competition, including dataset, can be found online a
 ## Environment setting
 `$ pip install -r requirements.txt`
 
-## Training/Evaluation
+## Training and Evaluation
 `$ cd model`
 ```
 train.py
@@ -131,7 +143,7 @@ train.py
     [--name NAME]
     [--gpu_ids GPU_IDS]
 ```
-### Model/Data Settings
+### Model and Data Settings
 - `--train {train, eval}`
     Training or evaluating the model
     Default: train
@@ -248,7 +260,7 @@ train.py
     Should generate the idf matrix file using code in `preprocess/` beforehand.
     Default: 0
 
-### Save/Load Model
+### Save or Load Model
 - `--dryrun`
     True: saves weights, logs, runs (tensorboard) during training.
     False: saves runs (tensorboard) only during training.
