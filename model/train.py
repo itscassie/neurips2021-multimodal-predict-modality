@@ -30,7 +30,7 @@ if __name__ == "__main__":
 
         if args.tfidf != 0:
             assert args.idf_path is not None, "need to specified --idf_path"
-            assert args.gene_activity == False, "support either ga or tfidf != 0"
+            assert not args.gene_activity, "support either ga or tfidf != 0"
             if args.tfidf == 1:
                 exp_name += f"_tfidf"
             elif args.tfidf == 2:
@@ -40,13 +40,13 @@ if __name__ == "__main__":
                 assert args.mode in [
                     "atac2gex_v2",
                     "atac2gex_p2",
-                ], "gene activity mode support only atac2gex mode (v2 or above)"
+                ], "gene activity mode support only atac2gex mode (v2 or p2)"
         elif args.gene_activity:
             exp_name += f"_ga"
             assert args.mode in [
                 "atac2gex_v2",
                 "atac2gex_p2",
-            ], "gene activity mode support only atac2gex mode (v2 or above)"
+            ], "gene activity mode support only atac2gex mode (v2 or p2)"
         if args.norm:
             exp_name += f"_norm"
         if args.dropout != 0.2:
