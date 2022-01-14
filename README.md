@@ -1,8 +1,10 @@
-[NeurIPS 2021 Competition Track - Multimodal Single-Cell Data Integration] Predict Modality
+[scJoint] NeurIPS 2021 Competition - Multimodal Single-Cell Modality Prediction
 ===
-This repo contains the training pipeline and script used for the **NeurIPS 2021 Competition - Multimodal Single-Cell Data Integration**, the **Predict Modality** task.
+This repo contains the training pipeline and script used for the **NeurIPS 2021 Competition - Multimodal Single-Cell Data Integration**, the **Predict Modality** task. Our team **scJoint** achieved 3rd place of the modality prediction task ([leaderboard](https://eval.ai/web/challenges/challenge-page/1111/leaderboard/2860)) in terms of the overall ranking of 4 subtasks: namely `GEX to ADT`, `ADT to GEX`, `GEX to ATAC`, and `ATAC to GEX`. Specifically, our methods ranked 3rd in GEX to ADT and 4th in ATAC to GEX.
 
-Full documentation for the competition, including dataset, can be found online at [openproblems.bio/neurips_docs/](https://openproblems.bio/neurips_docs/). 
+Our solution was originally based on an autoencoder architecture that aims to predict the desired modality features given another. We incorporated various strategies of preprocessing such as extracting tf-idf features and filtering highly variable genes/features. We also applied different training techniques such as cycle consistency loss and adversarial training to further minimize the reconstruction errors. For the prediction model used in the contest, we simply ensembled predictions generated from different model architecture and dataset batches by averaging.
+
+Full documentation for the competition, including dataset, can be found at [openproblems.bio/neurips_docs/](https://openproblems.bio/neurips_docs/).
 
 # Table of Contents
 
@@ -159,7 +161,7 @@ train.py
     Possible choices: `nn`, `cycle`, `batchgan`
     - `nn`: a simple autoencoder architecture
     - `cycle`: add cycle consistency loss (with a cycle structure) during training
-    - `batchgan`: autoencoder architecture with an advarsarial discrimnator
+    - `batchgan`: autoencoder architecture with an advarsarial discriminator
     
     Recommended settings: gex2adt = nn/batchgan, others = cycle
     Default: `nn`
